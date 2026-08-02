@@ -1,5 +1,6 @@
 using Insgram_Manager.Components;
 using Insgram_Manager.Data;
+using Insgram_Manager.Extensions;
 using Insgram_Manager.Hubs;
 using Insgram_Manager.Services;
 using Microsoft.EntityFrameworkCore;
@@ -26,6 +27,7 @@ builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
 builder.Services.AddSignalR();
 
 // --- Application Services ---
+builder.Services.AddApplicationServices();
 builder.Services.AddScoped<IThemeService, ThemeService>();
 
 var app = builder.Build();
