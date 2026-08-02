@@ -1,4 +1,5 @@
 using Insgram_Manager.Domain.Entities;
+using Insgram_Manager.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace Insgram_Manager.Data;
@@ -16,6 +17,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<Setting> Settings => Set<Setting>();
 
     public DbSet<InstagramAccount> InstagramAccounts => Set<InstagramAccount>();
+
+    public DbSet<InstagramRelationship> InstagramRelationships => Set<InstagramRelationship>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -37,6 +40,20 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.FullName).HasMaxLength(512);
             entity.Property(e => e.Biography).HasMaxLength(4096);
             entity.Property(e => e.ProfilePictureUrl).HasMaxLength(2048);
+            entity.Property(e => e.SourceFileName).HasMaxLength(512);
+            entity.Property(e => e.ImportSessionId).HasMaxLength(64);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+        });
+
+        modelBuilder.Entity<InstagramRelationship>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.Username);
+            entity.HasIndex(e => e.RelationshipType);
+            entity.Property(e => e.Username).IsRequired().HasMaxLength(256);
+            entity.Property(e => e.FullName).HasMaxLength(512);
+            entity.Property(e => e.ProfileUrl).HasMaxLength(2048);
             entity.Property(e => e.SourceFileName).HasMaxLength(512);
             entity.Property(e => e.ImportSessionId).HasMaxLength(64);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");

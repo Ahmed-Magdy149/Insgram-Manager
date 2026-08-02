@@ -2,7 +2,7 @@ namespace Insgram_Manager.Import.Models;
 
 /// <summary>
 /// Represents the result of an import operation.
-/// Prepared for Phase 2 — no implementation yet.
+/// Carries parsed profiles and relationships extracted from the source file.
 /// </summary>
 public sealed class ImportResult
 {
@@ -15,6 +15,10 @@ public sealed class ImportResult
     public int SkippedRecords { get; init; }
 
     public IReadOnlyList<string> Errors { get; init; } = [];
+
+    public IReadOnlyList<InstagramProfileModel> Profiles { get; init; } = [];
+
+    public IReadOnlyList<InstagramRelationshipModel> Relationships { get; init; } = [];
 
     public string? Message { get; init; }
 }

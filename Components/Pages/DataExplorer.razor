@@ -1,0 +1,81 @@
+@page "/data-explorer"
+@layout MainLayout
+@inherits DataExplorerPageBase
+
+<PageTitle>Data Explorer &middot; Insgram Manager</PageTitle>
+
+<div class="data-explorer">
+    <h1 class="data-explorer-title">Data Explorer</h1>
+    <p class="data-explorer-subtitle">Browse, search, and export imported Instagram relationship data.</p>
+
+    <Card Class="data-explorer-card">
+        <div class="data-explorer-toolbar">
+            <div class="data-explorer-search">
+                <Input @bind-Value="SearchTerm"
+                       Placeholder="Search by username or full name"
+                       OnPressEnter="OnSearch"
+                       AllowClear />
+            </div>
+            <div class="data-explorer-actions">
+                <Button Type="@ButtonType.Default" Icon="download" OnClick="ExportCsvAsync">CSV Export</Button>
+                <Popover Title="Columns" Trigger="@(new[] { AntDesign.Trigger.Click })" Placement="AntDesign.Placement.BottomRight">
+                    <ContentTemplate>
+                        <div class="data-explorer-columns">
+                            <Checkbox @bind-Checked="ShowUsername">Username</Checkbox>
+                            <Checkbox @bind-Checked="ShowFullName">Full Name</Checkbox>
+                            <Checkbox @bind-Checked="ShowProfileUrl">Profile URL</Checkbox>
+                            <Checkbox @bind-Checked="ShowType">Type</Checkbox>
+                            <Checkbox @bind-Checked="ShowImportedAt">Imported At</Checkbox>
+                        </div>
+                    </ContentTemplate>
+                    <ChildContent>
+                        <Button Type="@ButtonType.Default" Icon="control">Columns</Button>
+                    </ChildContent>
+                </Popover>
+            </div>
+        </div>
+
+        <Tabs DefaultActiveKey="@(((int)SelectedType).ToString())" OnChange="OnTypeTabChanged">
+            <TabPane Key="0" Tab="Followers" />
+            <TabPane Key="1" Tab="Following" />
+            <TabPane Key="2" Tab="Pending Requests" />
+            <TabPane Key="3" Tab="Blocked" />
+            <TabPane Key="4" Tab="Recent Follow Requests" />
+            <TabPane Key="5" Tab="Removed Suggestions" />
+        </Tabs>
+
+        <Table TItem="InstagramRelationship"
+               DataSource="FilteredItems"
+               PageSize="PageSize"
+               Total="TotalCount"
+               @bind-PageIndex="PageIndex"
+               PaginationPosition="bottom"
+               Loading="IsLoading"
+               Class="data-explorer-table">
+            @if (ShowUsername)
+            {
+                <PropertyColumn Property="c => c.Username" Title="Username" Sortable />
+            }
+            @if (ShowFullName)
+            {
+                <PropertyColumn Property="c => c.FullName" Title="Full Name" Sortable />
+            }
+            @if (ShowProfileUrl)
+            {
+                <PropertyColumn Property="c => c.ProfileUrl" Title="Profile URL">
+                    <a href="@context.ProfileUrl" target="_blank" rel="noopener noreferrer">@context.ProfileUrl</a>
+                </PropertyColumn>
+            }
+            @if (ShowType)
+            {
+                <PropertyColumn Property="c => c.RelationshipType" Title="Type" Sortable>
+                    <Tag Color="@GetTagColor(context.RelationshipType)">@context.RelationshipType</Tag>
+                </PropertyColumn>
+            }
+            @if (ShowImportedAt)
+            {
+                <PropertyColumn Property="c => c.CreatedAt" Title="Imported At" Format="yyyy-MM-dd HH:mm" Sortable />
+            }
+        </Table>
+    </Card>
+</div>

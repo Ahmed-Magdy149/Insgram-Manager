@@ -1,4 +1,5 @@
 using Insgram_Manager.Domain.Entities;
+using Insgram_Manager.Domain.Enums;
 using Insgram_Manager.Events;
 using Insgram_Manager.Import.Factories;
 using Insgram_Manager.Import.Interfaces;
@@ -94,6 +95,7 @@ public sealed class ImportService : IImportService
 
             // Step 5: Parse each HTML file
             var allProfiles = new List<InstagramProfileModel>();
+            var allRelationships = new List<InstagramRelationshipModel>();
 
             foreach (var htmlFile in htmlFiles)
             {
@@ -118,8 +120,8 @@ public sealed class ImportService : IImportService
                 if (parseResult.Success)
                 {
                     // Convert parsed DTOs to domain entities
-                    var profiles = ConvertToEntities(parseResult, htmlFile, sessionId);
-                    allProfiles.AddRange(profiles);
+                    allProfiles.AddRange(parseResult.Profiles);
+                    allRelationships.AddRange(parseResult.Relationships);
                     statistics.ImportedRecords += parseResult.ImportedRecords;
                 }
                 else
@@ -133,8 +135,9 @@ public sealed class ImportService : IImportService
             }
 
             // Step 6: Save to SQLite
-            var savedCount = await SaveToDatabaseAsync(allProfiles, sessionId);
-            _logger.LogInformation("Saved {Count} accounts to database", savedCount);
+            var savedCount = await SaveToDatabaseAsync(allProfiles, allRelationships, sessionId);
+            _logger.LogInformation("Saved {Count} accounts and {RelationshipCount} relationships to database",
+                savedCount.accountCount, savedCount.relationshipCount);
 
             // Step 7: Cleanup
             await CleanupAsync(tempZipPath, extractionPath);
@@ -148,7 +151,7 @@ public sealed class ImportService : IImportService
             return BuildResult(
                 success: errors.Count == 0,
                 totalRecords: statistics.TotalRecords,
-                importedRecords: savedCount,
+                importedRecords: savedCount.accountCount,
                 skippedRecords: statistics.SkippedRecords,
                 errors: errors,
                 sessionId: sessionId);
@@ -187,31 +190,10 @@ public sealed class ImportService : IImportService
         return files.Distinct().ToList();
     }
 
-    private static List<InstagramProfileModel> ConvertToEntities(ImportResult parseResult, string sourceFilePath, string sessionId)
-    {
-        // The HtmlImportParser returns parsed profiles in the result.
-        // Since ImportResult doesn't carry the profiles directly,
-        // we re-extract from the parse result's metadata.
-        // In a production system, we'd use a richer result type.
-        // For now, we create a profile from the parse result metadata.
-        var fileName = Path.GetFileName(sourceFilePath);
-        var profile = new InstagramProfileModel
-        {
-            Username = Path.GetFileNameWithoutExtension(fileName),
-            FullName = null,
-            Biography = null,
-            ProfilePictureUrl = null,
-            FollowerCount = 0,
-            FollowingCount = 0,
-            PostCount = 0,
-            IsVerified = false,
-            IsPrivate = false
-        };
-
-        return [profile];
-    }
-
-    private async Task<int> SaveToDatabaseAsync(List<InstagramProfileModel> profiles, string sessionId)
+    private async Task<(int accountCount, int relationshipCount)> SaveToDatabaseAsync(
+        List<InstagramProfileModel> profiles,
+        List<InstagramRelationshipModel> relationships,
+        string sessionId)
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
         var savedCount = 0;
@@ -265,8 +247,60 @@ public sealed class ImportService : IImportService
             savedCount++;
         }
 
+        var relationshipCount = 0;
+        var seenRelationships = new HashSet<(string username, RelationshipType type)>(
+            new RelationshipKeyComparer());
+
+        foreach (var relationship in relationships)
+        {
+            if (string.IsNullOrWhiteSpace(relationship.Username))
+                continue;
+
+            if (!seenRelationships.Add((relationship.Username, relationship.RelationshipType)))
+                continue;
+
+            if (skipDuplicates)
+            {
+                var existing = await context.InstagramRelationships
+                    .FirstOrDefaultAsync(r =>
+                        r.Username == relationship.Username &&
+                        r.RelationshipType == relationship.RelationshipType);
+
+                if (existing is not null)
+                {
+                    existing.FullName = relationship.FullName;
+                    existing.ProfileUrl = relationship.ProfileUrl;
+                    existing.SourceFileName = relationship.ProfileUrl;
+                    existing.ImportSessionId = sessionId;
+                    existing.UpdatedAt = DateTime.UtcNow;
+                    relationshipCount++;
+                    continue;
+                }
+            }
+
+            context.InstagramRelationships.Add(new InstagramRelationship
+            {
+                Username = relationship.Username,
+                FullName = relationship.FullName,
+                ProfileUrl = relationship.ProfileUrl,
+                RelationshipType = relationship.RelationshipType,
+                SourceFileName = relationship.ProfileUrl,
+                ImportSessionId = sessionId
+            });
+            relationshipCount++;
+        }
+
         await context.SaveChangesAsync();
-        return savedCount;
+        return (savedCount, relationshipCount);
+    }
+
+    private sealed class RelationshipKeyComparer : IEqualityComparer<(string username, RelationshipType type)>
+    {
+        public bool Equals((string username, RelationshipType type) x, (string username, RelationshipType type) y)
+            => string.Equals(x.username, y.username, StringComparison.OrdinalIgnoreCase) && x.type == y.type;
+
+        public int GetHashCode((string username, RelationshipType type) obj)
+            => HashCode.Combine(obj.username.ToLowerInvariant(), obj.type);
     }
 
     private async Task CleanupAsync(params string[] paths)

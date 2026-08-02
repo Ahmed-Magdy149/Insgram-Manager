@@ -1,14 +1,19 @@
 @inject NavigationManager NavigationManager
 
 <nav class="app-nav">
-    <NavLink href="" class="app-nav-item" Match="NavLinkMatch.All" OnClick="HandleNavigate">
+    <NavLink href="" class="app-nav-item" Match="NavLinkMatch.All">
         <Icon Type="dashboard" />
         <span>Dashboard</span>
     </NavLink>
 
-    <NavLink href="import" class="app-nav-item" Match="NavLinkMatch.Prefix" OnClick="HandleNavigate">
+    <NavLink href="import" class="app-nav-item" Match="NavLinkMatch.Prefix">
         <Icon Type="download" />
         <span>Import</span>
+    </NavLink>
+
+    <NavLink href="data-explorer" class="app-nav-item" Match="NavLinkMatch.Prefix">
+        <Icon Type="table" />
+        <span>Data Explorer</span>
     </NavLink>
 
     <div class="app-nav-item app-nav-item--disabled">
@@ -35,13 +40,3 @@
         <Tag Color="default" Class="app-nav-tag">Soon</Tag>
     </div>
 </nav>
-
-@code {
-    [Parameter]
-    public EventCallback OnNavigate { get; set; }
-
-    private async Task HandleNavigate()
-    {
-        await OnNavigate.InvokeAsync();
-    }
-}
