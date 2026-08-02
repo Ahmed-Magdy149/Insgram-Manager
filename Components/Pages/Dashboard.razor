@@ -1,6 +1,6 @@
 @page "/"
 @layout MainLayout
-@inherits BaseComponent
+@inherits DashboardPageBase
 
 <PageTitle>Dashboard &middot; Insgram Manager</PageTitle>
 
@@ -9,24 +9,24 @@
     <p class="dashboard-subtitle">Overview of your Instagram management activities.</p>
 
     <div class="dashboard-stats">
-        <StatCard Icon="user" Label="Connected Accounts" Value="0" Color="blue" />
-        <StatCard Icon="message" Label="DMs Sent" Value="0" Color="green" />
-        <StatCard Icon="user-add" Label="New Follows" Value="0" Color="orange" />
-        <StatCard Icon="bar-chart" Label="Scheduled Posts" Value="0" Color="purple" />
+        <StatCard Icon="user" Label="Imported Accounts" Value="@ImportedAccountCount.ToString()" Color="blue" />
+        <StatCard Icon="user-add" Label="Verified Accounts" Value="@VerifiedAccountCount.ToString()" Color="green" />
+        <StatCard Icon="lock" Label="Private Accounts" Value="@PrivateAccountCount.ToString()" Color="orange" />
+        <StatCard Icon="bar-chart" Label="Total Followers" Value="@TotalFollowers.ToString("N0")" Color="purple" />
     </div>
 
     <div class="dashboard-section">
         <Card>
             <Title Level="4">Welcome to Insgram Manager</Title>
             <Paragraph>
-                Phase 1 infrastructure is ready. Instagram automation features will be available in Phase 2.
+                Import your Instagram data export to start managing accounts. Use the Import page to upload ZIP archives.
             </Paragraph>
             <Space>
                 <SpaceItem>
-                    <Button Type="@ButtonType.Primary" Icon="rocket">Get Started</Button>
+                    <Button Type="@ButtonType.Primary" Icon="download" OnClick="NavigateToImport">Import Data</Button>
                 </SpaceItem>
                 <SpaceItem>
-                    <Button Type="@ButtonType.Default" Icon="book">Documentation</Button>
+                    <Button Type="@ButtonType.Default" Icon="reload" OnClick="@(async () => await LoadStatsAsync())">Refresh</Button>
                 </SpaceItem>
             </Space>
         </Card>
@@ -34,10 +34,27 @@
 
     <div class="dashboard-section">
         <Card Title="Recent Activity">
-            <div class="dashboard-empty">
-                <Icon Type="inbox" Class="dashboard-empty-icon" />
-                <p class="dashboard-empty-text">No activity yet. Automation features coming in Phase 2.</p>
-            </div>
+            @if (RecentAccounts.Count == 0)
+            {
+                <div class="dashboard-empty">
+                    <Icon Type="inbox" Class="dashboard-empty-icon" />
+                    <p class="dashboard-empty-text">No accounts imported yet. Use the Import page to upload your Instagram data export.</p>
+                </div>
+            }
+            else
+            {
+                <Table TItem="Insgram_Manager.Domain.Entities.InstagramAccount"
+                       DataSource="@RecentAccounts"
+                       Pagination="false">
+                    <PropertyColumn Property="c => c.Username" Title="Username" />
+                    <PropertyColumn Property="c => c.FullName" Title="Full Name" />
+                    <PropertyColumn Property="c => c.FollowerCount" Title="Followers" />
+                    <PropertyColumn Property="c => c.IsVerified" Title="Verified">
+                        <Tag Color="@(context.IsVerified ? "green" : "default")">@(context.IsVerified ? "Yes" : "No")</Tag>
+                    </PropertyColumn>
+                    <PropertyColumn Property="c => c.CreatedAt" Title="Imported" Format="yyyy-MM-dd HH:mm" />
+                </Table>
+            }
         </Card>
     </div>
 </div>

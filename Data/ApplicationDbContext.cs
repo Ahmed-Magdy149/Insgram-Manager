@@ -15,6 +15,8 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<Setting> Settings => Set<Setting>();
 
+    public DbSet<InstagramAccount> InstagramAccounts => Set<InstagramAccount>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Setting>(entity =>
@@ -23,6 +25,20 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(e => e.Key).IsUnique();
             entity.Property(e => e.Key).IsRequired().HasMaxLength(128);
             entity.Property(e => e.Value).HasMaxLength(2048);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+        });
+
+        modelBuilder.Entity<InstagramAccount>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.Username);
+            entity.Property(e => e.Username).IsRequired().HasMaxLength(256);
+            entity.Property(e => e.FullName).HasMaxLength(512);
+            entity.Property(e => e.Biography).HasMaxLength(4096);
+            entity.Property(e => e.ProfilePictureUrl).HasMaxLength(2048);
+            entity.Property(e => e.SourceFileName).HasMaxLength(512);
+            entity.Property(e => e.ImportSessionId).HasMaxLength(64);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
         });

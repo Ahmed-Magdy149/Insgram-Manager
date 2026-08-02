@@ -1,24 +1,30 @@
+using Insgram_Manager.Import.Factories;
+using Insgram_Manager.Import.Services;
 using Insgram_Manager.Interfaces;
+using Insgram_Manager.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Insgram_Manager.Extensions;
 
 /// <summary>
 /// Import module service registration.
-/// Registers import-related interfaces as forward declarations.
-/// Implementations will be added in Phase 2 when the Import Engine is built.
+/// Registers import-related services, parser factory, and progress service.
 /// </summary>
 public static class ImportExtensions
 {
     /// <summary>
     /// Registers import module services.
-    /// All registrations are forward declarations — no implementations exist yet.
     /// </summary>
     public static IServiceCollection AddImport(this IServiceCollection services)
     {
-        // --- Import Services (Phase 2 forward declarations) ---
-        // services.AddScoped<IParserFactory, ParserFactory>();
-        // services.AddScoped<IImportService, ImportService>();
+        // --- Import Services ---
+        services.AddScoped<IImportService, ImportService>();
+
+        // --- Parser Factory ---
+        services.AddSingleton<IImportParserFactory, ImportParserFactory>();
+
+        // --- Import Progress (SignalR) ---
+        services.AddSingleton<IImportProgressService, ImportProgressService>();
 
         return services;
     }

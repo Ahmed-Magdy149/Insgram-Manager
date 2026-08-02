@@ -1,0 +1,95 @@
+.import-page {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.import-title {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--app-text);
+}
+
+.import-subtitle {
+    margin: 0;
+    color: var(--app-text-secondary);
+    font-size: 14px;
+}
+
+.import-upload-card {
+    padding: 24px;
+}
+
+.import-file-input {
+    margin-bottom: 16px;
+}
+
+.import-file-input::file-selector-button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    background: var(--ant-primary-color, #1890ff);
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    margin-right: 12px;
+}
+
+.import-file-input::file-selector-button:hover {
+    opacity: 0.85;
+}
+
+.import-progress {
+    margin-top: 24px;
+}
+
+.import-progress-status {
+    margin-top: 8px;
+    color: var(--app-text-secondary);
+    font-size: 13px;
+    text-align: center;
+}
+
+.import-summary-card {
+    padding: 24px;
+}
+
+.import-errors-alert {
+    margin-top: 16px;
+}
+
+.import-dropzone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 48px 24px;
+    margin-top: 16px;
+    border: 2px dashed var(--app-border);
+    border-radius: 8px;
+    background: var(--app-bg-secondary);
+    transition: border-color 0.2s, background 0.2s;
+    cursor: pointer;
+}
+
+.import-dropzone:hover {
+    border-color: var(--ant-primary-color, #1890ff);
+}
+
+.import-dropzone-icon {
+    font-size: 48px;
+    color: var(--app-text-secondary);
+}
+
+.import-dropzone-text {
+    margin: 0;
+    font-size: 14px;
+    color: var(--app-text);
+}
+
+.import-dropzone-hint {
+    margin: 0;
+    font-size: 12px;
+    color: var(--app-text-secondary);
+}

@@ -1,0 +1,48 @@
+@page "/import"
+@layout MainLayout
+@inherits ImportPageBase
+
+<PageTitle>Import &middot; Insgram Manager</PageTitle>
+
+<div class="import-page">
+    <h1 class="import-title">Import Instagram Data</h1>
+    <p class="import-subtitle">Upload a ZIP archive of your Instagram data export to import profiles.</p>
+
+    @if (HasResult)
+    {
+        <Card Class="import-summary-card">
+            <Title Level="4">Import Summary</Title>
+            <Descriptions Column="3" Bordered>
+                <DescriptionsItem Label="Status">@ResultStatus</DescriptionsItem>
+                <DescriptionsItem Label="Total Files">@LastResult.TotalRecords</DescriptionsItem>
+                <DescriptionsItem Label="Imported">@LastResult.ImportedRecords</DescriptionsItem>
+                <DescriptionsItem Label="Skipped">@LastResult.SkippedRecords</DescriptionsItem>
+                <DescriptionsItem Label="Errors">@LastResult.Errors.Count</DescriptionsItem>
+            </Descriptions>
+            @if (LastResult.Errors.Count > 0)
+            {
+                <Alert Type="@AlertType.Error" Message="Import Errors" Description="@string.Join("\n", LastResult.Errors)" ShowIcon Class="import-errors-alert" />
+            }
+            <Button Type="@ButtonType.Primary" OnClick="Reset">New Import</Button>
+        </Card>
+    }
+    else
+    {
+        <Card Class="import-upload-card">
+            <InputFile OnChange="HandleFileChange" Accept=".zip" multiple="false" class="import-file-input" />
+            <div class="import-dropzone">
+                <Icon Type="inbox" Class="import-dropzone-icon" />
+                <p class="import-dropzone-text">Click to browse or drag and drop your ZIP file</p>
+                <p class="import-dropzone-hint">Supports Instagram data export ZIP archives (.zip)</p>
+            </div>
+
+            @if (IsImporting)
+            {
+                <div class="import-progress">
+                    <Progress Percent="@ProgressPercent" Status="@ProgressStatus" />
+                    <p class="import-progress-status">@ProgressStatusText</p>
+                </div>
+            }
+        </Card>
+    }
+</div>
