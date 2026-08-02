@@ -14,6 +14,8 @@ public static class ServiceCollectionExtensions
 {
     /// <summary>
     /// Registers all application services, repositories, and the Unit of Work.
+    /// Phase 2 interface registrations are included as forward declarations —
+    /// implementations will be added when Phase 2 features are built.
     /// </summary>
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
@@ -28,6 +30,14 @@ public static class ServiceCollectionExtensions
 
         // --- Repository & Unit of Work ---
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+        // --- Phase 2 Interface Forward Declarations ---
+        // These interfaces are registered so DI can resolve them once
+        // implementations are added. No implementations exist yet.
+        // services.AddScoped<IAutomationEngine, ...>();
+        // services.AddScoped<IQueueService, ...>();
+        // services.AddScoped<IInstagramSessionService, ...>();
+        // services.AddScoped<IParserFactory, ...>();
 
         return services;
     }

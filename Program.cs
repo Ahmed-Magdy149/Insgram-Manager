@@ -30,6 +30,11 @@ builder.Services.AddSignalR();
 builder.Services.AddApplicationServices();
 builder.Services.AddScoped<IThemeService, ThemeService>();
 
+// --- Application Infrastructure (Options, AutoMapper, FluentValidation) ---
+builder.Services.AddApplicationOptions(builder.Configuration);
+builder.Services.AddAutoMapperProfiles();
+builder.Services.AddFluentValidation();
+
 var app = builder.Build();
 
 // --- Database Initialization ---
