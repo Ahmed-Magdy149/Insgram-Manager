@@ -2,7 +2,6 @@ using Insgram_Manager.Components;
 using Insgram_Manager.Data;
 using Insgram_Manager.Extensions;
 using Insgram_Manager.Hubs;
-using Insgram_Manager.Services;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 
@@ -27,13 +26,13 @@ builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
 builder.Services.AddSignalR();
 
 // --- Application Services ---
-builder.Services.AddApplicationServices();
-builder.Services.AddScoped<IThemeService, ThemeService>();
+builder.Services.AddApplication();
 
-// --- Application Infrastructure (Options, AutoMapper, FluentValidation) ---
-builder.Services.AddApplicationOptions(builder.Configuration);
-builder.Services.AddAutoMapperProfiles();
-builder.Services.AddFluentValidation();
+// --- Infrastructure (Persistence, FileSystem, ZIP, HTML, Options, AutoMapper, FluentValidation) ---
+builder.Services.AddInfrastructure(builder.Configuration);
+
+// --- Import Module (Phase 2 forward declarations) ---
+builder.Services.AddImport();
 
 var app = builder.Build();
 
