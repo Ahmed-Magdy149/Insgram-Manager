@@ -1,0 +1,15 @@
+.app-drawer-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 24px;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--app-sidebar-text-active);
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.app-drawer-logo .anticon {
+    font-size: 28px;
+}

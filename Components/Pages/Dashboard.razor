@@ -1,0 +1,42 @@
+@page "/"
+@layout MainLayout
+
+<PageTitle>Dashboard &middot; Insgram Manager</PageTitle>
+
+<div class="dashboard">
+    <h1 class="dashboard-title">Dashboard</h1>
+    <p class="dashboard-subtitle">Overview of your Instagram management activities.</p>
+
+    <div class="dashboard-stats">
+        <StatCard Icon="user" Label="Connected Accounts" Value="0" Color="blue" />
+        <StatCard Icon="message" Label="DMs Sent" Value="0" Color="green" />
+        <StatCard Icon="user-add" Label="New Follows" Value="0" Color="orange" />
+        <StatCard Icon="bar-chart" Label="Scheduled Posts" Value="0" Color="purple" />
+    </div>
+
+    <div class="dashboard-section">
+        <Card>
+            <Title Level="4">Welcome to Insgram Manager</Title>
+            <Paragraph>
+                Phase 1 infrastructure is ready. Instagram automation features will be available in Phase 2.
+            </Paragraph>
+            <Space>
+                <SpaceItem>
+                    <Button Type="@ButtonType.Primary" Icon="rocket">Get Started</Button>
+                </SpaceItem>
+                <SpaceItem>
+                    <Button Type="@ButtonType.Default" Icon="book">Documentation</Button>
+                </SpaceItem>
+            </Space>
+        </Card>
+    </div>
+
+    <div class="dashboard-section">
+        <Card Title="Recent Activity">
+            <div class="dashboard-empty">
+                <Icon Type="inbox" Class="dashboard-empty-icon" />
+                <p class="dashboard-empty-text">No activity yet. Automation features coming in Phase 2.</p>
+            </div>
+        </Card>
+    </div>
+</div>

@@ -1,0 +1,63 @@
+.stat-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 24px;
+    background: var(--app-card-bg);
+    border-radius: 12px;
+    border: 1px solid var(--app-border);
+    transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.stat-card-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.stat-card-icon--blue {
+    background: rgba(24, 144, 255, 0.1);
+    color: #1890ff;
+}
+
+.stat-card-icon--green {
+    background: rgba(82, 196, 26, 0.1);
+    color: #52c41a;
+}
+
+.stat-card-icon--orange {
+    background: rgba(250, 140, 22, 0.1);
+    color: #fa8c16;
+}
+
+.stat-card-icon--purple {
+    background: rgba(114, 46, 209, 0.1);
+    color: #722ed1;
+}
+
+.stat-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.stat-card-value {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--app-text);
+}
+
+.stat-card-label {
+    font-size: 14px;
+    color: var(--app-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

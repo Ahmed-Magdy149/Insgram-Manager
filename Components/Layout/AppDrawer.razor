@@ -1,0 +1,20 @@
+<Drawer Closable="true"
+        Placement="@DrawerPlacement.Left"
+        Width="280"
+        Visible="@Visible"
+        OnClose="OnClose"
+        BodyStyle="background: var(--app-sidebar-bg); padding: 0;">
+    <div class="app-drawer-logo">
+        <Icon Type="instagram" />
+        <span>Insgram Manager</span>
+    </div>
+    <NavMenu OnNavigate="OnClose" />
+</Drawer>
+
+@code {
+    [Parameter]
+    public bool Visible { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+}

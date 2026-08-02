@@ -1,0 +1,20 @@
+<header class="app-header">
+    <div class="app-header-left">
+        <Button Type="@ButtonType.Text"
+                Class="app-header-menu-btn"
+                OnClick="OnMenuToggle"
+                Icon="menu" />
+        <span class="app-header-title">Insgram Manager</span>
+    </div>
+
+    <div class="app-header-right">
+        <ThemeToggle />
+        <Button Type="@ButtonType.Text" Icon="bell" />
+        <Avatar Icon="user" />
+    </div>
+</header>
+
+@code {
+    [Parameter]
+    public EventCallback OnMenuToggle { get; set; }
+}

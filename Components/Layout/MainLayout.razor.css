@@ -1,3 +1,22 @@
+.app-shell {
+    display: flex;
+    min-height: 100vh;
+}
+
+.app-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    margin-left: 240px;
+    transition: margin-left 0.25s ease;
+}
+
+.app-content {
+    flex: 1;
+    padding: 24px;
+}
+
 #blazor-error-ui {
     color-scheme: light only;
     background: lightyellow;
@@ -18,3 +37,13 @@
         right: 0.75rem;
         top: 0.5rem;
     }
+
+@media (max-width: 991px) {
+    .app-body {
+        margin-left: 0;
+    }
+
+    .app-content {
+        padding: 16px;
+    }
+}

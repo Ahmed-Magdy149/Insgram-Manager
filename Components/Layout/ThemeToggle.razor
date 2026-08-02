@@ -1,0 +1,33 @@
+@inject IThemeService ThemeService
+@implements IDisposable
+
+<Button Type="@ButtonType.Text"
+        Class="theme-toggle"
+        OnClick="ToggleTheme"
+        Icon="@(_isDark ? "sun" : "moon")" />
+
+@code {
+    private bool _isDark;
+
+    protected override void OnInitialized()
+    {
+        _isDark = ThemeService.CurrentTheme == ThemeMode.Dark;
+        ThemeService.ThemeChanged += OnThemeChanged;
+    }
+
+    private void OnThemeChanged()
+    {
+        _isDark = ThemeService.CurrentTheme == ThemeMode.Dark;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ToggleTheme()
+    {
+        await ThemeService.ToggleThemeAsync();
+    }
+
+    public void Dispose()
+    {
+        ThemeService.ThemeChanged -= OnThemeChanged;
+    }
+}
