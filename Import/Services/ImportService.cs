@@ -139,10 +139,13 @@ public sealed class ImportService : IImportService
             _logger.LogInformation("Saved {Count} accounts and {RelationshipCount} relationships to database",
                 savedCount.accountCount, savedCount.relationshipCount);
 
-            // Step 7: Cleanup
+            // Step 7: Save import record for dashboard history
+            await SaveImportRecordAsync(sessionId, request.FileName, statistics, savedCount, errors);
+
+            // Step 8: Cleanup
             await CleanupAsync(tempZipPath, extractionPath);
 
-            // Step 8: Complete
+            // Step 9: Complete
             await _progressService.NotifyCompletedAsync(sessionId, statistics);
 
             _logger.LogInformation("Import session {SessionId} completed: {Imported}/{Total} records",
@@ -161,6 +164,7 @@ public sealed class ImportService : IImportService
             _logger.LogError(ex, "Import session {SessionId} failed", sessionId);
             errors.Add($"Import failed: {ex.Message}");
             await _progressService.NotifyFailedAsync(sessionId, ex.Message);
+            await SaveFailedImportRecordAsync(sessionId, request.FileName, ex.Message);
             return BuildResult(false, statistics.TotalRecords, statistics.ImportedRecords, statistics.SkippedRecords, errors, sessionId);
         }
     }
@@ -301,6 +305,56 @@ public sealed class ImportService : IImportService
 
         public int GetHashCode((string username, RelationshipType type) obj)
             => HashCode.Combine(obj.username.ToLowerInvariant(), obj.type);
+    }
+
+    private async Task SaveImportRecordAsync(
+        string sessionId,
+        string fileName,
+        ImportStatistics statistics,
+        (int accountCount, int relationshipCount) savedCount,
+        List<string> errors)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
+        var record = new ImportRecord
+        {
+            SessionId = sessionId,
+            FileName = fileName,
+            StartedAt = DateTime.UtcNow,
+            CompletedAt = DateTime.UtcNow,
+            Status = errors.Count == 0 ? "Completed" : "CompletedWithErrors",
+            TotalRecords = statistics.TotalRecords,
+            ImportedRecords = savedCount.accountCount,
+            SkippedRecords = statistics.SkippedRecords,
+            FailedRecords = statistics.FailedRecords,
+            AccountCount = savedCount.accountCount,
+            RelationshipCount = savedCount.relationshipCount,
+            ErrorMessage = errors.Count > 0 ? string.Join("; ", errors) : null
+        };
+
+        context.ImportRecords.Add(record);
+        await context.SaveChangesAsync();
+    }
+
+    private async Task SaveFailedImportRecordAsync(
+        string sessionId,
+        string fileName,
+        string errorMessage)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
+        var record = new ImportRecord
+        {
+            SessionId = sessionId,
+            FileName = fileName,
+            StartedAt = DateTime.UtcNow,
+            CompletedAt = DateTime.UtcNow,
+            Status = "Failed",
+            ErrorMessage = errorMessage
+        };
+
+        context.ImportRecords.Add(record);
+        await context.SaveChangesAsync();
     }
 
     private async Task CleanupAsync(params string[] paths)

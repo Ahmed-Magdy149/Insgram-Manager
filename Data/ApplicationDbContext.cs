@@ -20,6 +20,8 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<InstagramRelationship> InstagramRelationships => Set<InstagramRelationship>();
 
+    public DbSet<ImportRecord> ImportRecords => Set<ImportRecord>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Setting>(entity =>
@@ -56,6 +58,18 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.ProfileUrl).HasMaxLength(2048);
             entity.Property(e => e.SourceFileName).HasMaxLength(512);
             entity.Property(e => e.ImportSessionId).HasMaxLength(64);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+        });
+
+        modelBuilder.Entity<ImportRecord>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.SessionId);
+            entity.Property(e => e.SessionId).IsRequired().HasMaxLength(64);
+            entity.Property(e => e.FileName).IsRequired().HasMaxLength(512);
+            entity.Property(e => e.Status).IsRequired().HasMaxLength(32);
+            entity.Property(e => e.ErrorMessage).HasMaxLength(4096);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
         });

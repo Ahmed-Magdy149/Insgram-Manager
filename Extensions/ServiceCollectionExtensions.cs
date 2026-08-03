@@ -24,6 +24,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<INotificationService, Services.NotificationService>();
         services.AddScoped<ILoadingService, LoadingService>();
         services.AddScoped<IDialogService, DialogService>();
+        services.AddScoped<IDashboardService, DashboardService>();
 
         // --- Theme ---
         services.AddScoped<IThemeService, ThemeService>();

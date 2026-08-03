@@ -5,35 +5,99 @@
 <PageTitle>Dashboard &middot; Insgram Manager</PageTitle>
 
 <div class="dashboard">
-    <h1 class="dashboard-title">Dashboard</h1>
-    <p class="dashboard-subtitle">Overview of your Instagram management activities.</p>
-
-    <div class="dashboard-stats">
-        <StatCard Icon="user" Label="Imported Accounts" Value="@ImportedAccountCount.ToString()" Color="blue" />
-        <StatCard Icon="user-add" Label="Verified Accounts" Value="@VerifiedAccountCount.ToString()" Color="green" />
-        <StatCard Icon="lock" Label="Private Accounts" Value="@PrivateAccountCount.ToString()" Color="orange" />
-        <StatCard Icon="bar-chart" Label="Total Followers" Value="@TotalFollowers.ToString("N0")" Color="purple" />
+    <div class="dashboard-header">
+        <div>
+            <h1 class="dashboard-title">Dashboard</h1>
+            <p class="dashboard-subtitle">Overview of your Instagram management activities.</p>
+        </div>
+        <div class="dashboard-header-actions">
+            @if (IsLive)
+            {
+                <Tag Color="@("blue")" Class="dashboard-live-tag">
+                    <Icon Type="sync" /> Live
+                </Tag>
+            }
+            <Button Type="@ButtonType.Default" Icon="reload" Loading="@IsRefreshing" OnClick="RefreshAsync">Refresh</Button>
+        </div>
     </div>
 
-    <div class="dashboard-section">
-        <Card>
-            <Title Level="4">Welcome to Insgram Manager</Title>
-            <Paragraph>
-                Import your Instagram data export to start managing accounts. Use the Import page to upload ZIP archives.
-            </Paragraph>
-            <Space>
-                <SpaceItem>
+    <div class="dashboard-stats">
+        <StatCard Icon="user-add" Label="Followers" Value="@Stats.FollowersCount.ToString("N0")" Color="blue" />
+        <StatCard Icon="usergroup-add" Label="Following" Value="@Stats.FollowingCount.ToString("N0")" Color="green" />
+        <StatCard Icon="clock-circle" Label="Pending Requests" Value="@Stats.PendingRequestsCount.ToString("N0")" Color="orange" />
+        <StatCard Icon="stop" Label="Blocked" Value="@Stats.BlockedCount.ToString("N0")" Color="purple" />
+    </div>
+
+    <div class="dashboard-stats dashboard-stats--secondary">
+        <StatCard Icon="user" Label="Imported Accounts" Value="@Stats.ImportedAccountCount.ToString("N0")" Color="blue" />
+        <StatCard Icon="check-circle" Label="Verified Accounts" Value="@Stats.VerifiedAccountCount.ToString("N0")" Color="green" />
+        <StatCard Icon="lock" Label="Private Accounts" Value="@Stats.PrivateAccountCount.ToString("N0")" Color="orange" />
+        <StatCard Icon="bar-chart" Label="Total Relationships" Value="@Stats.TotalRelationships.ToString("N0")" Color="purple" />
+    </div>
+
+    <div class="dashboard-grid">
+        <Card Class="dashboard-card">
+            <Title Level="4">Relationship Breakdown</Title>
+            <BreakdownChart Items="@Breakdown" />
+        </Card>
+
+        <Card Class="dashboard-card">
+            <Title Level="4">Last Import</Title>
+            @if (LastImport is null)
+            {
+                <div class="dashboard-empty">
+                    <Icon Type="inbox" Class="dashboard-empty-icon" />
+                    <p class="dashboard-empty-text">No imports yet. Upload your Instagram data export to get started.</p>
                     <Button Type="@ButtonType.Primary" Icon="download" OnClick="NavigateToImport">Import Data</Button>
-                </SpaceItem>
-                <SpaceItem>
-                    <Button Type="@ButtonType.Default" Icon="reload" OnClick="@(async () => await LoadStatsAsync())">Refresh</Button>
-                </SpaceItem>
-            </Space>
+                </div>
+            }
+            else
+            {
+                <Descriptions Column="1" Bordered Size="@DescriptionsSize.Small">
+                    <DescriptionsItem Label="File">@LastImport.FileName</DescriptionsItem>
+                    <DescriptionsItem Label="Status">
+                        <Tag Color="@GetStatusColor(LastImport.Status)">@LastImport.Status</Tag>
+                    </DescriptionsItem>
+                    <DescriptionsItem Label="Accounts">@LastImport.AccountCount.ToString("N0")</DescriptionsItem>
+                    <DescriptionsItem Label="Relationships">@LastImport.RelationshipCount.ToString("N0")</DescriptionsItem>
+                    <DescriptionsItem Label="Duration">@FormatDuration(LastImport.Duration)</DescriptionsItem>
+                    <DescriptionsItem Label="Date">@LastImport.StartedAt.ToString("yyyy-MM-dd HH:mm")</DescriptionsItem>
+                </Descriptions>
+            }
         </Card>
     </div>
 
     <div class="dashboard-section">
-        <Card Title="Recent Activity">
+        <Card Title="Import History">
+            @if (ImportHistory.Count == 0)
+            {
+                <div class="dashboard-empty">
+                    <Icon Type="history" Class="dashboard-empty-icon" />
+                    <p class="dashboard-empty-text">No import history available yet.</p>
+                </div>
+            }
+            else
+            {
+                <Table TItem="ImportHistoryItem"
+                       DataSource="@ImportHistory"
+                       Pagination="false">
+                    <PropertyColumn Property="x => x.FileName" Title="File" />
+                    <PropertyColumn Property="x => x.Status" Title="Status">
+                        <Tag Color="@GetStatusColor(context.Status)">@context.Status</Tag>
+                    </PropertyColumn>
+                    <PropertyColumn Property="x => x.AccountCount" Title="Accounts" />
+                    <PropertyColumn Property="x => x.RelationshipCount" Title="Relationships" />
+                    <PropertyColumn Property="x => x.StartedAt" Title="Date" Format="yyyy-MM-dd HH:mm" />
+                    <PropertyColumn Property="x => x.Duration" Title="Duration">
+                        @FormatDuration(context.Duration)
+                    </PropertyColumn>
+                </Table>
+            }
+        </Card>
+    </div>
+
+    <div class="dashboard-section">
+        <Card Title="Recent Accounts">
             @if (RecentAccounts.Count == 0)
             {
                 <div class="dashboard-empty">
@@ -56,5 +120,16 @@
                 </Table>
             }
         </Card>
+    </div>
+
+    <div class="dashboard-actions">
+        <Space>
+            <SpaceItem>
+                <Button Type="@ButtonType.Primary" Icon="download" OnClick="NavigateToImport">Import Data</Button>
+            </SpaceItem>
+            <SpaceItem>
+                <Button Type="@ButtonType.Default" Icon="table" OnClick="NavigateToDataExplorer">Data Explorer</Button>
+            </SpaceItem>
+        </Space>
     </div>
 </div>

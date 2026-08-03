@@ -1,0 +1,38 @@
+<div class="breakdown-chart">
+    @if (Items.Count == 0 || Items.All(i => i.Count == 0))
+    {
+        <div class="breakdown-chart-empty">
+            <Icon Type="bar-chart" Class="breakdown-chart-empty-icon" />
+            <p class="breakdown-chart-empty-text">No relationship data available. Import your Instagram data to see the breakdown.</p>
+        </div>
+    }
+    else
+    {
+        @foreach (var item in Items)
+        {
+            <div class="breakdown-row">
+                <div class="breakdown-row-header">
+                    <span class="breakdown-row-label">@item.Label</span>
+                    <span class="breakdown-row-count">
+                        <Tag Color="@item.Color">@item.Count.ToString("N0")</Tag>
+                        <span class="breakdown-row-percentage">@item.Percentage%</span>
+                    </span>
+                </div>
+                <div class="breakdown-row-bar-track">
+                    <div class="breakdown-row-bar breakdown-row-bar--@item.Color"
+                         style="width: @GetBarWidth(item.Percentage)%"></div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter]
+    public IReadOnlyList<Insgram_Manager.Interfaces.RelationshipBreakdownItem> Items { get; set; } = [];
+
+    private static string GetBarWidth(double percentage)
+    {
+        return Math.Max(percentage, 0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+    }
+}
