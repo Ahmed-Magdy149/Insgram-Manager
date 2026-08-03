@@ -37,39 +37,39 @@ public sealed class DashboardService : IDashboardService
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
 
-        var accounts = context.InstagramAccounts.AsNoTracking();
-        var relationships = context.InstagramRelationships.AsNoTracking();
+        var accountStats = await context.InstagramAccounts.AsNoTracking()
+            .GroupBy(a => 1)
+            .Select(g => new
+            {
+                Total = g.Count(),
+                Verified = g.Count(a => a.IsVerified),
+                Private = g.Count(a => a.IsPrivate),
+                TotalFollowers = g.Sum(a => (long)a.FollowerCount),
+                TotalFollowing = g.Sum(a => (long)a.FollowingCount)
+            })
+            .FirstOrDefaultAsync() ?? new { Total = 0, Verified = 0, Private = 0, TotalFollowers = 0L, TotalFollowing = 0L };
 
-        var importedAccountCount = await accounts.CountAsync();
-        var verifiedAccountCount = await accounts.CountAsync(a => a.IsVerified);
-        var privateAccountCount = await accounts.CountAsync(a => a.IsPrivate);
-        var totalFollowers = await accounts.SumAsync(a => (long)a.FollowerCount);
-        var totalFollowing = await accounts.SumAsync(a => (long)a.FollowingCount);
-
-        var totalRelationships = await relationships.CountAsync();
-        var followersCount = await relationships.CountAsync(r => r.RelationshipType == RelationshipType.Followers);
-        var followingCount = await relationships.CountAsync(r => r.RelationshipType == RelationshipType.Following);
-        var pendingRequestsCount = await relationships.CountAsync(r => r.RelationshipType == RelationshipType.PendingRequests);
-        var blockedCount = await relationships.CountAsync(r => r.RelationshipType == RelationshipType.Blocked);
-        var recentFollowRequestsCount = await relationships.CountAsync(r => r.RelationshipType == RelationshipType.RecentFollowRequests);
-        var removedSuggestionsCount = await relationships.CountAsync(r => r.RelationshipType == RelationshipType.RemovedSuggestions);
+        var relationshipCounts = await context.InstagramRelationships.AsNoTracking()
+            .GroupBy(r => r.RelationshipType)
+            .Select(g => new { Type = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Type, x => x.Count);
 
         var totalImports = await context.ImportRecords.AsNoTracking().CountAsync();
 
         return new DashboardStatsDto
         {
-            ImportedAccountCount = importedAccountCount,
-            VerifiedAccountCount = verifiedAccountCount,
-            PrivateAccountCount = privateAccountCount,
-            TotalFollowers = totalFollowers,
-            TotalFollowing = totalFollowing,
-            TotalRelationships = totalRelationships,
-            FollowersCount = followersCount,
-            FollowingCount = followingCount,
-            PendingRequestsCount = pendingRequestsCount,
-            BlockedCount = blockedCount,
-            RecentFollowRequestsCount = recentFollowRequestsCount,
-            RemovedSuggestionsCount = removedSuggestionsCount,
+            ImportedAccountCount = accountStats.Total,
+            VerifiedAccountCount = accountStats.Verified,
+            PrivateAccountCount = accountStats.Private,
+            TotalFollowers = accountStats.TotalFollowers,
+            TotalFollowing = accountStats.TotalFollowing,
+            TotalRelationships = relationshipCounts.Values.Sum(),
+            FollowersCount = relationshipCounts.GetValueOrDefault(RelationshipType.Followers, 0),
+            FollowingCount = relationshipCounts.GetValueOrDefault(RelationshipType.Following, 0),
+            PendingRequestsCount = relationshipCounts.GetValueOrDefault(RelationshipType.PendingRequests, 0),
+            BlockedCount = relationshipCounts.GetValueOrDefault(RelationshipType.Blocked, 0),
+            RecentFollowRequestsCount = relationshipCounts.GetValueOrDefault(RelationshipType.RecentFollowRequests, 0),
+            RemovedSuggestionsCount = relationshipCounts.GetValueOrDefault(RelationshipType.RemovedSuggestions, 0),
             TotalImports = totalImports
         };
     }

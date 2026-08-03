@@ -29,4 +29,8 @@ public interface IInstagramSessionService
     Task<bool> UpsertSessionAsync(InstagramSessionState session);
 
     Task<bool> RecordInteractionAsync(InstagramInteractionRecord record);
+
+    Task<bool> StoreSessionWithCookiesAsync(string username, string cookieHeader, string? csrfToken = null, string? accessToken = null);
+
+    Task<bool> ValidateSessionAsync(string accountKey);
 }

@@ -199,9 +199,13 @@ public sealed class ImportService : IImportService
         string sessionId)
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
+        await using var transaction = await context.Database.BeginTransactionAsync();
+
         var savedCount = 0;
         var skipDuplicates = _importOptions.Value.SkipDuplicates;
 
+        try
+        {
         foreach (var profile in profiles)
         {
             if (string.IsNullOrWhiteSpace(profile.Username))
@@ -294,7 +298,19 @@ public sealed class ImportService : IImportService
         }
 
         await context.SaveChangesAsync();
+        await transaction.CommitAsync();
+
+        _logger.LogInformation(
+            "Import summary for session {SessionId}: {AccountCount} accounts, {RelationshipCount} relationships saved",
+            sessionId, savedCount, relationshipCount);
+
         return (savedCount, relationshipCount);
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
 
     private sealed class RelationshipKeyComparer : IEqualityComparer<(string username, RelationshipType type)>

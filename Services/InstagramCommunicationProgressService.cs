@@ -25,4 +25,21 @@ public sealed class InstagramCommunicationProgressService : IInstagramCommunicat
             timestamp = DateTime.UtcNow
         });
     }
+
+    public Task NotifyPendingRequestProgressAsync(PendingRequestBatchProgress progress)
+    {
+        return _hubContext.Clients.All.SendAsync("PendingRequestProgress", progress);
+    }
+
+    public Task NotifyPendingRequestCompletedAsync(IReadOnlyList<PendingRequestCancelResult> results)
+    {
+        return _hubContext.Clients.All.SendAsync("PendingRequestCompleted", new
+        {
+            total = results.Count,
+            succeeded = results.Count(r => r.Success),
+            failed = results.Count(r => !r.Success),
+            results,
+            timestamp = DateTime.UtcNow
+        });
+    }
 }

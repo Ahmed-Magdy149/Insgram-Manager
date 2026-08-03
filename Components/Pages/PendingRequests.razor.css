@@ -1,0 +1,152 @@
+.pending-requests-page {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.pending-requests-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.pending-requests-title {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.pending-requests-subtitle {
+    margin: 4px 0 0;
+    color: rgba(0, 0, 0, 0.45);
+    font-size: 14px;
+}
+
+.pending-requests-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.pending-requests-live-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.pending-requests-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+}
+
+.pending-requests-card {
+    overflow: hidden;
+}
+
+.pending-requests-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.pending-requests-session {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pending-requests-session label {
+    font-size: 14px;
+    color: rgba(0, 0, 0, 0.65);
+    white-space: nowrap;
+}
+
+.pending-requests-select {
+    min-width: 200px;
+    padding: 4px 8px;
+    border: 1px solid #d9d9d9;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.pending-requests-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.pending-requests-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    text-align: center;
+}
+
+.pending-requests-empty-icon {
+    font-size: 48px;
+    color: #52c41a;
+    margin-bottom: 16px;
+}
+
+.pending-requests-empty-text {
+    color: rgba(0, 0, 0, 0.45);
+    margin-bottom: 16px;
+}
+
+.pending-requests-progress-card {
+    margin-bottom: 0;
+}
+
+.pending-requests-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.pending-requests-progress-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    color: rgba(0, 0, 0, 0.65);
+}
+
+.pending-requests-progress-stats {
+    display: flex;
+    gap: 8px;
+}
+
+.pending-requests-results {
+    margin-top: 0;
+}
+
+.pending-requests-table {
+    overflow-x: auto;
+}
+
+@media (max-width: 768px) {
+    .pending-requests-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .pending-requests-session {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .pending-requests-actions {
+        justify-content: stretch;
+    }
+
+    .pending-requests-actions button {
+        flex: 1;
+    }
+}

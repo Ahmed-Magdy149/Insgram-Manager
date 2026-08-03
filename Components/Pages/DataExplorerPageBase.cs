@@ -20,7 +20,6 @@ public class DataExplorerPageBase : BaseComponent
     [Inject]
     private IJSRuntime JSRuntime { get; set; } = default!;
 
-    protected List<InstagramRelationship> AllItems { get; set; } = [];
     protected List<InstagramRelationship> FilteredItems { get; set; } = [];
 
     protected string SearchTerm { get; set; } = string.Empty;
@@ -50,12 +49,26 @@ public class DataExplorerPageBase : BaseComponent
         try
         {
             await using var context = await DbContextFactory.CreateDbContextAsync();
-            AllItems = await context.InstagramRelationships
-                .AsNoTracking()
-                .OrderByDescending(r => r.CreatedAt)
-                .ToListAsync();
 
-            ApplyFilterAndPaging();
+            var query = context.InstagramRelationships
+                .AsNoTracking()
+                .Where(r => r.RelationshipType == SelectedType);
+
+            if (!string.IsNullOrWhiteSpace(SearchTerm))
+            {
+                var term = SearchTerm.Trim().ToLowerInvariant();
+                query = query.Where(r =>
+                    r.Username.ToLower().Contains(term) ||
+                    (r.FullName != null && r.FullName.ToLower().Contains(term)));
+            }
+
+            TotalCount = await query.CountAsync();
+
+            FilteredItems = await query
+                .OrderByDescending(r => r.CreatedAt)
+                .Skip((PageIndex - 1) * PageSize)
+                .Take(PageSize)
+                .ToListAsync();
         }
         finally
         {
@@ -63,32 +76,33 @@ public class DataExplorerPageBase : BaseComponent
         }
     }
 
-    protected void OnSearch()
+    protected async Task OnSearch()
     {
         if (_lastSearchTerm == SearchTerm)
             return;
 
         _lastSearchTerm = SearchTerm;
         PageIndex = 1;
-        ApplyFilterAndPaging();
+        await LoadDataAsync();
         StateHasChanged();
     }
 
-    protected void OnTypeTabChanged(string key)
+    protected async Task OnTypeTabChanged(string key)
     {
         if (int.TryParse(key, out var value) && Enum.IsDefined(typeof(RelationshipType), value))
         {
             SelectedType = (RelationshipType)value;
             PageIndex = 1;
-            ApplyFilterAndPaging();
+            await LoadDataAsync();
             StateHasChanged();
         }
     }
 
-    protected void OnPageChanged(int page)
+    protected async Task OnTableChange(AntDesign.TableModels.QueryModel<InstagramRelationship> query)
     {
-        PageIndex = page;
-        ApplyFilterAndPaging();
+        PageIndex = query.PageIndex;
+        PageSize = query.PageSize;
+        await LoadDataAsync();
     }
 
     protected string GetTagColor(RelationshipType type)
@@ -107,6 +121,24 @@ public class DataExplorerPageBase : BaseComponent
 
     protected async Task ExportCsvAsync()
     {
+        await using var context = await DbContextFactory.CreateDbContextAsync();
+
+        var query = context.InstagramRelationships
+            .AsNoTracking()
+            .Where(r => r.RelationshipType == SelectedType);
+
+        if (!string.IsNullOrWhiteSpace(SearchTerm))
+        {
+            var term = SearchTerm.Trim().ToLowerInvariant();
+            query = query.Where(r =>
+                r.Username.ToLower().Contains(term) ||
+                (r.FullName != null && r.FullName.ToLower().Contains(term)));
+        }
+
+        var exportItems = await query
+            .OrderByDescending(r => r.CreatedAt)
+            .ToListAsync();
+
         var builder = new StringBuilder();
         var headers = new List<string>();
 
@@ -118,7 +150,7 @@ public class DataExplorerPageBase : BaseComponent
 
         builder.AppendLine(string.Join(",", headers.Select(EscapeCsv)));
 
-        foreach (var item in FilteredItems)
+        foreach (var item in exportItems)
         {
             var fields = new List<string>();
 
@@ -151,28 +183,5 @@ public class DataExplorerPageBase : BaseComponent
         }
 
         return value;
-    }
-
-    private void ApplyFilterAndPaging()
-    {
-        var query = AllItems
-            .Where(r => r.RelationshipType == SelectedType)
-            .AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(SearchTerm))
-        {
-            var term = SearchTerm.Trim().ToLowerInvariant();
-            query = query.Where(r =>
-                (r.Username != null && r.Username.ToLowerInvariant().Contains(term)) ||
-                (r.FullName != null && r.FullName.ToLowerInvariant().Contains(term)));
-        }
-
-        var list = query.ToList();
-        TotalCount = list.Count;
-
-        FilteredItems = list
-            .Skip((PageIndex - 1) * PageSize)
-            .Take(PageSize)
-            .ToList();
     }
 }

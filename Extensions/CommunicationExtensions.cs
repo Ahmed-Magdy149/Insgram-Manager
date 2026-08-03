@@ -15,6 +15,7 @@ public static class CommunicationExtensions
         services.AddSingleton<IInstagramRateLimiter, InstagramRateLimiter>();
         services.AddScoped<IInstagramSessionService, InstagramSessionService>();
         services.AddHttpClient<IInstagramRequestService, InstagramRequestService>();
+        services.AddScoped<IPendingRequestService, PendingRequestService>();
 
         return services;
     }

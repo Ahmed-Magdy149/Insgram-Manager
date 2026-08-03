@@ -1,0 +1,136 @@
+@page "/pending-requests"
+@layout MainLayout
+@inherits PendingRequestsPageBase
+
+<PageTitle>Pending Requests &middot; Insgram Manager</PageTitle>
+
+<div class="pending-requests-page">
+    <div class="pending-requests-header">
+        <div>
+            <h1 class="pending-requests-title">Pending Follow Requests</h1>
+            <p class="pending-requests-subtitle">Review and cancel pending Instagram follow requests.</p>
+        </div>
+        <div class="pending-requests-header-actions">
+            @if (IsLive)
+            {
+                <Tag Color="@("blue")" Class="pending-requests-live-tag">
+                    <Icon Type="sync" /> Live
+                </Tag>
+            }
+            <Button Type="@ButtonType.Default" Icon="reload" Loading="@IsLoading" OnClick="LoadAsync">Refresh</Button>
+        </div>
+    </div>
+
+    <div class="pending-requests-stats">
+        <StatCard Icon="clock-circle" Label="Pending Requests" Value="@PendingRequests.Count.ToString("N0")" Color="orange" />
+        <StatCard Icon="check-square" Label="Selected" Value="@SelectedUsernames.Count.ToString("N0")" Color="blue" />
+        <StatCard Icon="check-circle" Label="Last Succeeded" Value="@LastResults.Count(r => r.Success).ToString("N0")" Color="green" />
+        <StatCard Icon="close-circle" Label="Last Failed" Value="@FailedResults.Count.ToString("N0")" Color="red" />
+    </div>
+
+    @if (IsProcessing && CurrentProgress is not null)
+    {
+        <Card Class="pending-requests-progress-card">
+            <div class="pending-requests-progress">
+                <div class="pending-requests-progress-info">
+                    <span>Processing: @CurrentProgress.CurrentUsername</span>
+                    <span>@CurrentProgress.Processed / @CurrentProgress.Total (@CurrentProgress.Percentage%)</span>
+                </div>
+                <Progress Percent="@CurrentProgress.Percentage" ShowInfo="false" StrokeColor="@("orange")" />
+                <div class="pending-requests-progress-stats">
+                    <Tag Color="@("green")">Succeeded: @CurrentProgress.Succeeded</Tag>
+                    <Tag Color="@("red")">Failed: @CurrentProgress.Failed</Tag>
+                </div>
+                <Button Type="@ButtonType.Default" Icon="stop" Danger OnClick="StopProcessing">Stop</Button>
+            </div>
+        </Card>
+    }
+
+    <Card Class="pending-requests-card">
+        <div class="pending-requests-toolbar">
+            <div class="pending-requests-session">
+                <label>Instagram Session:</label>
+                <select @bind="SelectedAccountKey" class="pending-requests-select" disabled="@IsProcessing">
+                    @if (Sessions.Count == 0)
+                    {
+                        <option value="">No sessions available</option>
+                    }
+                    else
+                    {
+                        @foreach (var session in Sessions)
+                        {
+                            <option value="@session.AccountKey">@($"{session.Username} ({session.AccountKey})")</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="pending-requests-actions">
+                <Button Type="@ButtonType.Primary" Icon="close-circle" OnClick="CancelSelectedAsync"
+                        Disabled="@(SelectedUsernames.Count == 0 || IsProcessing || string.IsNullOrWhiteSpace(SelectedAccountKey))">
+                    Cancel Selected (@SelectedUsernames.Count)
+                </Button>
+                <Button Type="@ButtonType.Primary" Icon="delete" OnClick="CancelAllAsync" Danger
+                        Disabled="@(PendingRequests.Count == 0 || IsProcessing || string.IsNullOrWhiteSpace(SelectedAccountKey))">
+                    Cancel All
+                </Button>
+                @if (FailedResults.Count > 0 && !IsProcessing)
+                {
+                    <Button Type="@ButtonType.Default" Icon="reload" OnClick="RetryFailedAsync">
+                        Retry Failed (@FailedResults.Count)
+                    </Button>
+                }
+            </div>
+        </div>
+
+        @if (PendingRequests.Count == 0)
+        {
+            <div class="pending-requests-empty">
+                <Icon Type="check-circle" Class="pending-requests-empty-icon" />
+                <p class="pending-requests-empty-text">No pending follow requests found. Import your Instagram data to see them here.</p>
+                <Button Type="@ButtonType.Primary" Icon="download" OnClick="@(() => NavigationManager.NavigateTo("/import"))">Import Data</Button>
+            </div>
+        }
+        else
+        {
+            <Table TItem="PendingRequestItem"
+                   DataSource="@PendingRequests"
+                   Loading="@IsLoading"
+                   RowKey="x => x.Username"
+                   Class="pending-requests-table">
+                <Selection ColumnType="@SelectionType.Checkbox"
+                           SelectedKeys="SelectedUsernames.ToList()"
+                           OnSelect="x => ToggleSelection(x.Username)"
+                           OnSelectAll="ToggleSelectAll" />
+                <PropertyColumn Property="x => x.Username" Title="Username" Sortable />
+                <PropertyColumn Property="x => x.FullName" Title="Full Name" Sortable />
+                <PropertyColumn Property="x => x.ProfileUrl" Title="Profile">
+                    <a href="@context.ProfileUrl" target="_blank" rel="noopener noreferrer">View</a>
+                </PropertyColumn>
+                <PropertyColumn Property="x => x.ImportedAt" Title="Imported" Format="yyyy-MM-dd HH:mm" Sortable />
+                <ActionColumn Title="Action">
+                    <Button Size="@ButtonSize.Small" Type="@ButtonType.Default" Icon="close-circle"
+                            OnClick="@(() => CancelSingleAsync(context.Username))"
+                            Disabled="@(IsProcessing || string.IsNullOrWhiteSpace(SelectedAccountKey))">
+                        Cancel
+                    </Button>
+                </ActionColumn>
+            </Table>
+        }
+    </Card>
+
+    @if (LastResults.Count > 0)
+    {
+        <Card Title="Last Batch Results" Class="pending-requests-results">
+            <Table TItem="PendingRequestCancelResult"
+                   DataSource="@LastResults">
+                <PropertyColumn Property="x => x.Username" Title="Username" />
+                <PropertyColumn Property="x => x.Success" Title="Status">
+                    <Tag Color="@GetStatusColor(context.Success)">@(context.Success ? "Success" : "Failed")</Tag>
+                </PropertyColumn>
+                <PropertyColumn Property="x => x.StatusCode" Title="HTTP Code" />
+                <PropertyColumn Property="x => x.Error" Title="Error" />
+                <PropertyColumn Property="x => x.CompletedAt" Title="Completed" Format="yyyy-MM-dd HH:mm" />
+            </Table>
+        </Card>
+    }
+</div>

@@ -33,10 +33,11 @@ public sealed class DialogService : IDialogService
 
     public async Task ShowModalAsync<TComponent>(string title) where TComponent : ComponentBase
     {
-        await _modalService.CreateModalAsync(new ModalOptions
+        var modalRef = _modalService.CreateModal(new ModalOptions
         {
             Title = title,
             Content = builder => builder.OpenComponent<TComponent>(0)
         });
+        await modalRef.OpenAsync();
     }
 }

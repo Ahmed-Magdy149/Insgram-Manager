@@ -59,6 +59,7 @@ public class ApplicationDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.Username);
             entity.HasIndex(e => e.RelationshipType);
+            entity.HasIndex(e => new { e.Username, e.RelationshipType });
             entity.Property(e => e.Username).IsRequired().HasMaxLength(256);
             entity.Property(e => e.FullName).HasMaxLength(512);
             entity.Property(e => e.ProfileUrl).HasMaxLength(2048);

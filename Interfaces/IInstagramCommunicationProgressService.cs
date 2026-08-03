@@ -6,4 +6,8 @@ namespace Insgram_Manager.Interfaces;
 public interface IInstagramCommunicationProgressService
 {
     Task NotifyCommunicationChangedAsync(string accountKey, string reason);
+
+    Task NotifyPendingRequestProgressAsync(PendingRequestBatchProgress progress);
+
+    Task NotifyPendingRequestCompletedAsync(IReadOnlyList<PendingRequestCancelResult> results);
 }
