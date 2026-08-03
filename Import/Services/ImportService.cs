@@ -163,7 +163,14 @@ public sealed class ImportService : IImportService
             _logger.LogError(ex, "Import session {SessionId} failed", sessionId);
             errors.Add($"Import failed: {ex.Message}");
             await _progressService.NotifyFailedAsync(sessionId, ex.Message);
-            await SaveFailedImportRecordAsync(sessionId, request.FileName, ex.Message);
+            try
+            {
+                await SaveFailedImportRecordAsync(sessionId, request.FileName, ex);
+            }
+            catch (Exception recordEx)
+            {
+                _logger.LogError(recordEx, "Failed to save failed-import record for session {SessionId}", sessionId);
+            }
             return BuildResult(false, statistics.TotalRecords, statistics.ImportedRecords, statistics.SkippedRecords, errors, sessionId);
         }
     }
@@ -206,105 +213,122 @@ public sealed class ImportService : IImportService
 
         try
         {
-        foreach (var profile in profiles)
-        {
-            if (string.IsNullOrWhiteSpace(profile.Username))
-                continue;
-
-            if (skipDuplicates)
+            foreach (var profile in profiles)
             {
-                var existing = await context.InstagramAccounts
-                    .FirstOrDefaultAsync(a => a.Username == profile.Username);
-
-                if (existing is not null)
-                {
-                    // Update existing record
-                    existing.FullName = profile.FullName;
-                    existing.Biography = profile.Biography;
-                    existing.ProfilePictureUrl = profile.ProfilePictureUrl;
-                    existing.FollowerCount = profile.FollowerCount;
-                    existing.FollowingCount = profile.FollowingCount;
-                    existing.PostCount = profile.PostCount;
-                    existing.IsVerified = profile.IsVerified;
-                    existing.IsPrivate = profile.IsPrivate;
-                    existing.SourceFileName = profile.Username;
-                    existing.ImportSessionId = sessionId;
-                    existing.UpdatedAt = DateTime.UtcNow;
-                    savedCount++;
+                if (string.IsNullOrWhiteSpace(profile.Username))
                     continue;
+
+                var normalizedUsername = Normalize(profile.Username, 256);
+                var normalizedFullName = Normalize(profile.FullName, 512);
+                var normalizedBiography = Normalize(profile.Biography, 4096);
+                var normalizedProfilePictureUrl = Normalize(profile.ProfilePictureUrl, 2048);
+
+                if (skipDuplicates)
+                {
+                    var existing = await context.InstagramAccounts
+                        .FirstOrDefaultAsync(a => a.Username == normalizedUsername);
+
+                    if (existing is not null)
+                    {
+                        existing.FullName = normalizedFullName;
+                        existing.Biography = normalizedBiography;
+                        existing.ProfilePictureUrl = normalizedProfilePictureUrl;
+                        existing.FollowerCount = profile.FollowerCount;
+                        existing.FollowingCount = profile.FollowingCount;
+                        existing.PostCount = profile.PostCount;
+                        existing.IsVerified = profile.IsVerified;
+                        existing.IsPrivate = profile.IsPrivate;
+                        existing.SourceFileName = profile.Username;
+                        existing.ImportSessionId = sessionId;
+                        existing.UpdatedAt = DateTime.UtcNow;
+                        savedCount++;
+                        continue;
+                    }
                 }
+
+                var account = new InstagramAccount
+                {
+                    Username = normalizedUsername,
+                    FullName = normalizedFullName,
+                    Biography = normalizedBiography,
+                    ProfilePictureUrl = normalizedProfilePictureUrl,
+                    FollowerCount = profile.FollowerCount,
+                    FollowingCount = profile.FollowingCount,
+                    PostCount = profile.PostCount,
+                    IsVerified = profile.IsVerified,
+                    IsPrivate = profile.IsPrivate,
+                    SourceFileName = profile.Username,
+                    ImportSessionId = sessionId
+                };
+
+                context.InstagramAccounts.Add(account);
+                savedCount++;
             }
 
-            var account = new InstagramAccount
+            var relationshipCount = 0;
+            var seenRelationships = new HashSet<(string username, RelationshipType type)>(
+                new RelationshipKeyComparer());
+
+            foreach (var relationship in relationships)
             {
-                Username = profile.Username,
-                FullName = profile.FullName,
-                Biography = profile.Biography,
-                ProfilePictureUrl = profile.ProfilePictureUrl,
-                FollowerCount = profile.FollowerCount,
-                FollowingCount = profile.FollowingCount,
-                PostCount = profile.PostCount,
-                IsVerified = profile.IsVerified,
-                IsPrivate = profile.IsPrivate,
-                SourceFileName = profile.Username,
-                ImportSessionId = sessionId
-            };
-
-            context.InstagramAccounts.Add(account);
-            savedCount++;
-        }
-
-        var relationshipCount = 0;
-        var seenRelationships = new HashSet<(string username, RelationshipType type)>(
-            new RelationshipKeyComparer());
-
-        foreach (var relationship in relationships)
-        {
-            if (string.IsNullOrWhiteSpace(relationship.Username))
-                continue;
-
-            if (!seenRelationships.Add((relationship.Username, relationship.RelationshipType)))
-                continue;
-
-            if (skipDuplicates)
-            {
-                var existing = await context.InstagramRelationships
-                    .FirstOrDefaultAsync(r =>
-                        r.Username == relationship.Username &&
-                        r.RelationshipType == relationship.RelationshipType);
-
-                if (existing is not null)
-                {
-                    existing.FullName = relationship.FullName;
-                    existing.ProfileUrl = relationship.ProfileUrl;
-                    existing.SourceFileName = relationship.ProfileUrl;
-                    existing.ImportSessionId = sessionId;
-                    existing.UpdatedAt = DateTime.UtcNow;
-                    relationshipCount++;
+                if (string.IsNullOrWhiteSpace(relationship.Username))
                     continue;
+
+                var normalizedUsername = Normalize(relationship.Username, 256);
+                var normalizedFullName = Normalize(relationship.FullName, 512);
+                var normalizedProfileUrl = Normalize(relationship.ProfileUrl, 2048);
+
+                if (!seenRelationships.Add((normalizedUsername, relationship.RelationshipType)))
+                    continue;
+
+                if (skipDuplicates)
+                {
+                    var existing = await context.InstagramRelationships
+                        .FirstOrDefaultAsync(r =>
+                            r.Username == normalizedUsername &&
+                            r.RelationshipType == relationship.RelationshipType);
+
+                    if (existing is not null)
+                    {
+                        existing.FullName = normalizedFullName;
+                        existing.ProfileUrl = normalizedProfileUrl;
+                        existing.SourceFileName = normalizedProfileUrl;
+                        existing.ImportSessionId = sessionId;
+                        existing.UpdatedAt = DateTime.UtcNow;
+                        relationshipCount++;
+                        continue;
+                    }
                 }
+
+                context.InstagramRelationships.Add(new InstagramRelationship
+                {
+                    Username = normalizedUsername,
+                    FullName = normalizedFullName,
+                    ProfileUrl = normalizedProfileUrl,
+                    RelationshipType = relationship.RelationshipType,
+                    SourceFileName = normalizedProfileUrl,
+                    ImportSessionId = sessionId
+                });
+                relationshipCount++;
             }
 
-            context.InstagramRelationships.Add(new InstagramRelationship
-            {
-                Username = relationship.Username,
-                FullName = relationship.FullName,
-                ProfileUrl = relationship.ProfileUrl,
-                RelationshipType = relationship.RelationshipType,
-                SourceFileName = relationship.ProfileUrl,
-                ImportSessionId = sessionId
-            });
-            relationshipCount++;
+            await context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            _logger.LogInformation(
+                "Import summary for session {SessionId}: {AccountCount} accounts, {RelationshipCount} relationships saved",
+                sessionId, savedCount, relationshipCount);
+
+            return (savedCount, relationshipCount);
         }
-
-        await context.SaveChangesAsync();
-        await transaction.CommitAsync();
-
-        _logger.LogInformation(
-            "Import summary for session {SessionId}: {AccountCount} accounts, {RelationshipCount} relationships saved",
-            sessionId, savedCount, relationshipCount);
-
-        return (savedCount, relationshipCount);
+        catch (DbUpdateException ex)
+        {
+            await transaction.RollbackAsync();
+            _logger.LogError(ex, "Database save failed for import session {SessionId}. Inner exception: {InnerMessage}",
+                sessionId, ex.InnerException?.Message ?? ex.Message);
+            throw new InvalidOperationException(
+                $"Import database save failed: {ex.InnerException?.Message ?? ex.Message}",
+                ex);
         }
         catch
         {
@@ -334,17 +358,17 @@ public sealed class ImportService : IImportService
         var record = new ImportRecord
         {
             SessionId = sessionId,
-            FileName = fileName,
+            FileName = Normalize(fileName, 512) ?? fileName,
             StartedAt = DateTime.UtcNow,
             CompletedAt = DateTime.UtcNow,
             Status = errors.Count == 0 ? "Completed" : "CompletedWithErrors",
             TotalRecords = statistics.TotalRecords,
-            ImportedRecords = savedCount.accountCount,
+            ImportedRecords = savedCount.accountCount + savedCount.relationshipCount,
             SkippedRecords = statistics.SkippedRecords,
             FailedRecords = statistics.FailedRecords,
             AccountCount = savedCount.accountCount,
             RelationshipCount = savedCount.relationshipCount,
-            ErrorMessage = errors.Count > 0 ? string.Join("; ", errors) : null
+            ErrorMessage = errors.Count > 0 ? Normalize(string.Join("; ", errors), 4096) : null
         };
 
         context.ImportRecords.Add(record);
@@ -354,18 +378,18 @@ public sealed class ImportService : IImportService
     private async Task SaveFailedImportRecordAsync(
         string sessionId,
         string fileName,
-        string errorMessage)
+        Exception exception)
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
 
         var record = new ImportRecord
         {
             SessionId = sessionId,
-            FileName = fileName,
+            FileName = Normalize(fileName, 512) ?? fileName,
             StartedAt = DateTime.UtcNow,
             CompletedAt = DateTime.UtcNow,
             Status = "Failed",
-            ErrorMessage = errorMessage
+            ErrorMessage = Normalize(exception.InnerException?.Message ?? exception.Message, 4096)
         };
 
         context.ImportRecords.Add(record);
@@ -405,5 +429,14 @@ public sealed class ImportService : IImportService
                 ? $"Import completed successfully. Session: {sessionId}"
                 : $"Import completed with {errors.Count} error(s). Session: {sessionId}"
         };
+    }
+
+    private static string? Normalize(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        var trimmed = value.Trim();
+        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
     }
 }

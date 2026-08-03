@@ -21,9 +21,10 @@ public static class DbInitializer
 
         try
         {
-            await SeedLegacyMigrationHistoryIfNeededAsync(context, logger);
+            await EnsureCoreSchemaAsync(context, logger);
+            await EnsureMigrationHistoryAsync(context, logger);
             await context.Database.MigrateAsync();
-            logger.LogInformation("Database migrations applied successfully.");
+            logger.LogInformation("Database schema verified and migrations applied successfully.");
         }
         catch (Exception ex)
         {
@@ -32,7 +33,7 @@ public static class DbInitializer
         }
     }
 
-    private static async Task SeedLegacyMigrationHistoryIfNeededAsync(ApplicationDbContext context, ILogger logger)
+    private static async Task EnsureCoreSchemaAsync(ApplicationDbContext context, ILogger logger)
     {
         var connection = context.Database.GetDbConnection();
         var shouldCloseConnection = connection.State != System.Data.ConnectionState.Open;
@@ -42,19 +43,57 @@ public static class DbInitializer
 
         try
         {
-            var historyExists = await TableExistsAsync(connection, "__EFMigrationsHistory");
-            if (!historyExists)
-                return;
+            await ExecuteNonQueryAsync(connection, "CREATE TABLE IF NOT EXISTS \"Settings\" (\"Id\" INTEGER NOT NULL CONSTRAINT \"PK_Settings\" PRIMARY KEY AUTOINCREMENT, \"CreatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"UpdatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"Key\" TEXT NOT NULL, \"Value\" TEXT NULL);");
+            await ExecuteNonQueryAsync(connection, "CREATE UNIQUE INDEX IF NOT EXISTS \"IX_Settings_Key\" ON \"Settings\" (\"Key\");");
 
-            var historyCount = await ScalarIntAsync(connection, "SELECT COUNT(*) FROM \"__EFMigrationsHistory\";");
+            await ExecuteNonQueryAsync(connection, "CREATE TABLE IF NOT EXISTS \"InstagramAccounts\" (\"Id\" INTEGER NOT NULL CONSTRAINT \"PK_InstagramAccounts\" PRIMARY KEY AUTOINCREMENT, \"CreatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"UpdatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"Username\" TEXT NOT NULL, \"FullName\" TEXT NULL, \"Biography\" TEXT NULL, \"ProfilePictureUrl\" TEXT NULL, \"FollowerCount\" INTEGER NOT NULL, \"FollowingCount\" INTEGER NOT NULL, \"PostCount\" INTEGER NOT NULL, \"IsVerified\" INTEGER NOT NULL, \"IsPrivate\" INTEGER NOT NULL, \"SourceFileName\" TEXT NULL, \"ImportSessionId\" TEXT NULL);");
+            await ExecuteNonQueryAsync(connection, "CREATE INDEX IF NOT EXISTS \"IX_InstagramAccounts_Username\" ON \"InstagramAccounts\" (\"Username\");");
+
+            await ExecuteNonQueryAsync(connection, "CREATE TABLE IF NOT EXISTS \"InstagramRelationships\" (\"Id\" INTEGER NOT NULL CONSTRAINT \"PK_InstagramRelationships\" PRIMARY KEY AUTOINCREMENT, \"CreatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"UpdatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"Username\" TEXT NOT NULL, \"FullName\" TEXT NULL, \"ProfileUrl\" TEXT NULL, \"RelationshipType\" INTEGER NOT NULL, \"SourceFileName\" TEXT NULL, \"ImportSessionId\" TEXT NULL);");
+            await ExecuteNonQueryAsync(connection, "CREATE INDEX IF NOT EXISTS \"IX_InstagramRelationships_Username\" ON \"InstagramRelationships\" (\"Username\");");
+            await ExecuteNonQueryAsync(connection, "CREATE INDEX IF NOT EXISTS \"IX_InstagramRelationships_RelationshipType\" ON \"InstagramRelationships\" (\"RelationshipType\");");
+            await ExecuteNonQueryAsync(connection, "CREATE INDEX IF NOT EXISTS \"IX_InstagramRelationships_Username_RelationshipType\" ON \"InstagramRelationships\" (\"Username\", \"RelationshipType\");");
+
+            await ExecuteNonQueryAsync(connection, "CREATE TABLE IF NOT EXISTS \"ImportRecords\" (\"Id\" INTEGER NOT NULL CONSTRAINT \"PK_ImportRecords\" PRIMARY KEY AUTOINCREMENT, \"CreatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"UpdatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"SessionId\" TEXT NOT NULL, \"FileName\" TEXT NOT NULL, \"StartedAt\" TEXT NOT NULL, \"CompletedAt\" TEXT NULL, \"Status\" TEXT NOT NULL, \"TotalRecords\" INTEGER NOT NULL, \"ImportedRecords\" INTEGER NOT NULL, \"SkippedRecords\" INTEGER NOT NULL, \"FailedRecords\" INTEGER NOT NULL, \"AccountCount\" INTEGER NOT NULL, \"RelationshipCount\" INTEGER NOT NULL, \"ErrorMessage\" TEXT NULL);");
+            await ExecuteNonQueryAsync(connection, "CREATE INDEX IF NOT EXISTS \"IX_ImportRecords_SessionId\" ON \"ImportRecords\" (\"SessionId\");");
+
+            await ExecuteNonQueryAsync(connection, "CREATE TABLE IF NOT EXISTS \"AutomationJobs\" (\"Id\" INTEGER NOT NULL CONSTRAINT \"PK_AutomationJobs\" PRIMARY KEY AUTOINCREMENT, \"CreatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"UpdatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"JobId\" TEXT NOT NULL, \"Type\" INTEGER NOT NULL, \"Status\" INTEGER NOT NULL, \"ParametersJson\" TEXT NOT NULL, \"QueuedAt\" TEXT NOT NULL, \"StartedAt\" TEXT NULL, \"CompletedAt\" TEXT NULL, \"RetryCount\" INTEGER NOT NULL, \"MaxRetries\" INTEGER NOT NULL, \"ErrorMessage\" TEXT NULL, \"ResultMessage\" TEXT NULL);");
+            await ExecuteNonQueryAsync(connection, "CREATE INDEX IF NOT EXISTS \"IX_AutomationJobs_JobId\" ON \"AutomationJobs\" (\"JobId\");");
+            await ExecuteNonQueryAsync(connection, "CREATE INDEX IF NOT EXISTS \"IX_AutomationJobs_Status\" ON \"AutomationJobs\" (\"Status\");");
+
+            await ExecuteNonQueryAsync(connection, "CREATE TABLE IF NOT EXISTS \"InstagramSessions\" (\"Id\" INTEGER NOT NULL CONSTRAINT \"PK_InstagramSessions\" PRIMARY KEY AUTOINCREMENT, \"CreatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"UpdatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"AccountKey\" TEXT NOT NULL, \"Username\" TEXT NOT NULL, \"ProtectedAccessToken\" TEXT NULL, \"ProtectedCookieHeader\" TEXT NULL, \"ProtectedCsrfToken\" TEXT NULL, \"Notes\" TEXT NULL);");
+            await ExecuteNonQueryAsync(connection, "CREATE UNIQUE INDEX IF NOT EXISTS \"IX_InstagramSessions_AccountKey\" ON \"InstagramSessions\" (\"AccountKey\");");
+
+            await ExecuteNonQueryAsync(connection, "CREATE TABLE IF NOT EXISTS \"InstagramInteractions\" (\"Id\" INTEGER NOT NULL CONSTRAINT \"PK_InstagramInteractions\" PRIMARY KEY AUTOINCREMENT, \"CreatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"UpdatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"AccountKey\" TEXT NOT NULL, \"Action\" TEXT NOT NULL, \"Method\" TEXT NOT NULL, \"Endpoint\" TEXT NOT NULL, \"Summary\" TEXT NULL, \"Error\" TEXT NULL, \"RequestBody\" TEXT NULL, \"ResponseBody\" TEXT NULL);");
+            await ExecuteNonQueryAsync(connection, "CREATE INDEX IF NOT EXISTS \"IX_InstagramInteractions_AccountKey\" ON \"InstagramInteractions\" (\"AccountKey\");");
+            await ExecuteNonQueryAsync(connection, "CREATE INDEX IF NOT EXISTS \"IX_InstagramInteractions_CreatedAt\" ON \"InstagramInteractions\" (\"CreatedAt\");");
+
+            logger.LogInformation("Core database schema verified or repaired successfully.");
+        }
+        finally
+        {
+            if (shouldCloseConnection)
+                await connection.CloseAsync();
+        }
+    }
+
+    private static async Task EnsureMigrationHistoryAsync(ApplicationDbContext context, ILogger logger)
+    {
+        var connection = context.Database.GetDbConnection();
+        var shouldCloseConnection = connection.State != System.Data.ConnectionState.Open;
+
+        if (shouldCloseConnection)
+            await connection.OpenAsync();
+
+        try
+        {
+            await ExecuteNonQueryAsync(connection, "CREATE TABLE IF NOT EXISTS \"__EFMigrationsHistory\" (\"MigrationId\" TEXT NOT NULL CONSTRAINT \"PK___EFMigrationsHistory\" PRIMARY KEY, \"ProductVersion\" TEXT NOT NULL);");
+
+            using var countCommand = connection.CreateCommand();
+            countCommand.CommandText = "SELECT COUNT(*) FROM \"__EFMigrationsHistory\" WHERE \"MigrationId\" = $migrationId;";
+            AddParameter(countCommand, "$migrationId", InitialMigrationId);
+            var historyCount = Convert.ToInt32(await countCommand.ExecuteScalarAsync());
             if (historyCount > 0)
-                return;
-
-            var legacySchemaExists = await TableExistsAsync(connection, "Settings")
-                                     || await TableExistsAsync(connection, "InstagramAccounts")
-                                     || await TableExistsAsync(connection, "ImportRecords");
-
-            if (!legacySchemaExists)
                 return;
 
             using var command = connection.CreateCommand();
@@ -63,7 +102,7 @@ public static class DbInitializer
             AddParameter(command, "$productVersion", typeof(DbContext).Assembly.GetName().Version?.ToString() ?? "10.0.0");
             await command.ExecuteNonQueryAsync();
 
-            logger.LogInformation("Seeded legacy EF migrations history with the initial migration.");
+            logger.LogInformation("Seeded EF migrations history with the initial migration.");
         }
         finally
         {
@@ -88,6 +127,13 @@ public static class DbInitializer
         command.CommandText = sql;
         var result = await command.ExecuteScalarAsync();
         return Convert.ToInt32(result);
+    }
+
+    private static async Task ExecuteNonQueryAsync(DbConnection connection, string sql)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        await command.ExecuteNonQueryAsync();
     }
 
     private static void AddParameter(DbCommand command, string name, object? value)
