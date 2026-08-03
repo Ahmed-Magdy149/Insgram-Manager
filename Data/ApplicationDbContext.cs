@@ -22,6 +22,8 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<ImportRecord> ImportRecords => Set<ImportRecord>();
 
+    public DbSet<AutomationJob> AutomationJobs => Set<AutomationJob>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Setting>(entity =>
@@ -70,6 +72,19 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.FileName).IsRequired().HasMaxLength(512);
             entity.Property(e => e.Status).IsRequired().HasMaxLength(32);
             entity.Property(e => e.ErrorMessage).HasMaxLength(4096);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+        });
+
+        modelBuilder.Entity<AutomationJob>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.JobId);
+            entity.HasIndex(e => e.Status);
+            entity.Property(e => e.JobId).IsRequired().HasMaxLength(64);
+            entity.Property(e => e.ParametersJson).HasMaxLength(8192);
+            entity.Property(e => e.ErrorMessage).HasMaxLength(4096);
+            entity.Property(e => e.ResultMessage).HasMaxLength(2048);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
         });

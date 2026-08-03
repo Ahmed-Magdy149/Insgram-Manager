@@ -34,6 +34,9 @@ builder.Services.AddInfrastructure(builder.Configuration);
 // --- Import Module (Phase 2 forward declarations) ---
 builder.Services.AddImport();
 
+// --- Background Worker (Phase 5 — Automation Engine) ---
+builder.Services.AddHostedService<Insgram_Manager.BackgroundJobs.BackgroundJobWorker>();
+
 var app = builder.Build();
 
 // --- Database Initialization ---

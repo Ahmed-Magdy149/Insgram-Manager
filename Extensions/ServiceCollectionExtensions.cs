@@ -26,6 +26,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDialogService, DialogService>();
         services.AddScoped<IDashboardService, DashboardService>();
 
+        // --- Automation Services ---
+        services.AddSingleton<IAutomationProgressService, AutomationProgressService>();
+        services.AddSingleton<AutomationService>();
+        services.AddSingleton<IAutomationService>(sp => sp.GetRequiredService<AutomationService>());
+
         // --- Theme ---
         services.AddScoped<IThemeService, ThemeService>();
 

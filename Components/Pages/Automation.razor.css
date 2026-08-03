@@ -1,0 +1,125 @@
+.automation-page {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.automation-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.automation-title {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--app-text);
+}
+
+.automation-subtitle {
+    margin: 0;
+    color: var(--app-text-secondary);
+    font-size: 14px;
+}
+
+.automation-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.automation-live-tag {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.automation-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+
+.automation-enqueue-card {
+    padding: 4px 0;
+}
+
+.automation-select {
+    min-width: 250px;
+    padding: 6px 12px;
+    border: 1px solid var(--app-border);
+    border-radius: 6px;
+    font-size: 14px;
+    color: var(--app-text);
+    background: var(--app-bg);
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.automation-select:focus {
+    border-color: #1890ff;
+}
+
+.automation-section {
+    display: flex;
+    flex-direction: column;
+}
+
+.automation-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 48px 24px;
+}
+
+.automation-empty-icon {
+    font-size: 48px;
+    color: var(--app-text-secondary);
+}
+
+.automation-empty-text {
+    margin: 0;
+    color: var(--app-text-secondary);
+    font-size: 14px;
+    text-align: center;
+}
+
+.automation-error-text {
+    display: inline-block;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--app-text-secondary);
+    font-size: 13px;
+}
+
+@media (max-width: 1199px) {
+    .automation-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 575px) {
+    .automation-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .automation-title {
+        font-size: 20px;
+    }
+
+    .automation-header {
+        flex-direction: column;
+    }
+
+    .automation-header-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}

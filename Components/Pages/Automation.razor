@@ -1,0 +1,127 @@
+@page "/automation"
+@layout MainLayout
+@inherits AutomationPageBase
+
+<PageTitle>Automation &middot; Insgram Manager</PageTitle>
+
+<div class="automation-page">
+    <div class="automation-header">
+        <div>
+            <h1 class="automation-title">Automation Engine</h1>
+            <p class="automation-subtitle">Manage automation jobs, queue processing, and execution lifecycle.</p>
+        </div>
+        <div class="automation-header-actions">
+            @if (IsLive)
+            {
+                <Tag Color="@("blue")" Class="automation-live-tag">
+                    <Icon Type="sync" /> Live
+                </Tag>
+            }
+            <Button Type="@ButtonType.Default" Icon="reload" Loading="@IsLoading" OnClick="LoadDataAsync">Refresh</Button>
+        </div>
+    </div>
+
+    <div class="automation-stats">
+        <StatCard Icon="bars" Label="Total Jobs" Value="@Stats.TotalJobs.ToString("N0")" Color="blue" />
+        <StatCard Icon="clock-circle" Label="Pending" Value="@Stats.PendingCount.ToString("N0")" Color="orange" />
+        <StatCard Icon="check-circle" Label="Completed" Value="@Stats.CompletedCount.ToString("N0")" Color="green" />
+        <StatCard Icon="close-circle" Label="Failed" Value="@Stats.FailedCount.ToString("N0")" Color="red" />
+    </div>
+
+    <div class="automation-stats automation-stats--secondary">
+        <StatCard Icon="loading" Label="Running" Value="@Stats.RunningCount.ToString("N0")" Color="blue" />
+        <StatCard Icon="pause-circle" Label="Paused" Value="@Stats.PausedCount.ToString("N0")" Color="orange" />
+        <StatCard Icon="stop" Label="Cancelled" Value="@Stats.CancelledCount.ToString("N0")" Color="purple" />
+        <StatCard Icon="redo" Label="Retrying" Value="@(Stats.PendingCount.ToString("N0"))" Color="green" />
+    </div>
+
+    <Card Class="automation-enqueue-card">
+        <Title Level="4">Enqueue New Job</Title>
+        <Paragraph>
+            Select an automation type and enqueue a new job. The background worker will process it when the automation engine is enabled.
+        </Paragraph>
+        <Space>
+            <SpaceItem>
+                <select @bind="SelectedType" class="automation-select">
+                    @foreach (var type in Enum.GetValues<AutomationType>())
+                    {
+                        <option value="@type">@GetTypeLabel(type)</option>
+                    }
+                </select>
+            </SpaceItem>
+            <SpaceItem>
+                <Button Type="@ButtonType.Primary" Icon="plus" OnClick="EnqueueJobAsync">Enqueue Job</Button>
+            </SpaceItem>
+        </Space>
+    </Card>
+
+    <div class="automation-section">
+        <Card Title="Job History">
+            @if (Jobs.Count == 0)
+            {
+                <div class="automation-empty">
+                    <Icon Type="thunderbolt" Class="automation-empty-icon" />
+                    <p class="automation-empty-text">No automation jobs yet. Enqueue a job above to get started.</p>
+                </div>
+            }
+            else
+            {
+                <Table TItem="AutomationJobDto"
+                       DataSource="@Jobs"
+                       Pagination="false">
+                    <PropertyColumn Property="x => x.Type" Title="Type">
+                        @GetTypeLabel(context.Type)
+                    </PropertyColumn>
+                    <PropertyColumn Property="x => x.Status" Title="Status">
+                        <Tag Color="@GetStatusColor(context.Status)">
+                            <Icon Type="@GetStatusIcon(context.Status)" /> @context.Status
+                        </Tag>
+                    </PropertyColumn>
+                    <PropertyColumn Property="x => x.RetryCount" Title="Retries">
+                        @context.RetryCount / @context.MaxRetries
+                    </PropertyColumn>
+                    <PropertyColumn Property="x => x.QueuedAt" Title="Queued" Format="yyyy-MM-dd HH:mm" />
+                    <PropertyColumn Property="x => x.Duration" Title="Duration">
+                        @FormatDuration(context.Duration)
+                    </PropertyColumn>
+                    <PropertyColumn Property="x => x.ErrorMessage" Title="Error">
+                        @if (!string.IsNullOrEmpty(context.ErrorMessage))
+                        {
+                            <Tooltip Title="@context.ErrorMessage">
+                                <span class="automation-error-text">@context.ErrorMessage</span>
+                            </Tooltip>
+                        }
+                    </PropertyColumn>
+                    <ActionColumn Title="Actions">
+                        <Space>
+                            @if (context.Status == JobStatus.Running || context.Status == JobStatus.Pending)
+                            {
+                                <SpaceItem>
+                                    <AntDesign.Button Size="AntDesign.ButtonSize.Small" Icon="pause" OnClick="@(async () => await PauseJobAsync(context.JobId))">Pause</AntDesign.Button>
+                                </SpaceItem>
+                            }
+                            @if (context.Status == JobStatus.Paused)
+                            {
+                                <SpaceItem>
+                                    <AntDesign.Button Size="AntDesign.ButtonSize.Small" Type="@ButtonType.Primary" Icon="play-circle" OnClick="@(async () => await ResumeJobAsync(context.JobId))">Resume</AntDesign.Button>
+                                </SpaceItem>
+                            }
+                            @if (context.Status == JobStatus.Failed && context.RetryCount < context.MaxRetries)
+                            {
+                                <SpaceItem>
+                                    <AntDesign.Button Size="AntDesign.ButtonSize.Small" Icon="redo" OnClick="@(async () => await RetryJobAsync(context.JobId))">Retry</AntDesign.Button>
+                                </SpaceItem>
+                            }
+                            @if (context.Status != JobStatus.Completed && context.Status != JobStatus.Cancelled)
+                            {
+                                <SpaceItem>
+                                    <AntDesign.Button Size="AntDesign.ButtonSize.Small" Danger Icon="stop" OnClick="@(async () => await CancelJobAsync(context.JobId))">Cancel</AntDesign.Button>
+                                </SpaceItem>
+                            }
+                        </Space>
+                    </ActionColumn>
+                </Table>
+            }
+        </Card>
+    </div>
+</div>

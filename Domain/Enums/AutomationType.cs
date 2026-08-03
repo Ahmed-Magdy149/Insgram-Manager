@@ -11,5 +11,6 @@ public enum AutomationType
     Unfollow = 2,
     Like = 3,
     Comment = 4,
-    PostSchedule = 5
+    PostSchedule = 5,
+    CancelPendingRequests = 6
 }

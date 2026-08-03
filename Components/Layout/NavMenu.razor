@@ -1,17 +1,17 @@
 @inject NavigationManager NavigationManager
 
 <nav class="app-nav">
-    <NavLink href="" class="app-nav-item" Match="NavLinkMatch.All">
+    <NavLink href="" class="app-nav-item" Match="NavLinkMatch.All" @onclick="HandleNavigate">
         <Icon Type="dashboard" />
         <span>Dashboard</span>
     </NavLink>
 
-    <NavLink href="import" class="app-nav-item" Match="NavLinkMatch.Prefix">
+    <NavLink href="import" class="app-nav-item" Match="NavLinkMatch.Prefix" @onclick="HandleNavigate">
         <Icon Type="download" />
         <span>Import</span>
     </NavLink>
 
-    <NavLink href="data-explorer" class="app-nav-item" Match="NavLinkMatch.Prefix">
+    <NavLink href="data-explorer" class="app-nav-item" Match="NavLinkMatch.Prefix" @onclick="HandleNavigate">
         <Icon Type="table" />
         <span>Data Explorer</span>
     </NavLink>
@@ -22,11 +22,10 @@
         <Tag Color="default" Class="app-nav-tag">Soon</Tag>
     </div>
 
-    <div class="app-nav-item app-nav-item--disabled">
+    <NavLink href="automation" class="app-nav-item" Match="NavLinkMatch.Prefix" @onclick="HandleNavigate">
         <Icon Type="thunderbolt" />
         <span>Automation</span>
-        <Tag Color="default" Class="app-nav-tag">Soon</Tag>
-    </div>
+    </NavLink>
 
     <div class="app-nav-item app-nav-item--disabled">
         <Icon Type="setting" />
@@ -34,3 +33,16 @@
         <Tag Color="default" Class="app-nav-tag">Soon</Tag>
     </div>
 </nav>
+
+@code {
+    [Parameter]
+    public EventCallback OnNavigate { get; set; }
+
+    private async Task HandleNavigate()
+    {
+        if (OnNavigate.HasDelegate)
+        {
+            await OnNavigate.InvokeAsync();
+        }
+    }
+}

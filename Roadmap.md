@@ -39,13 +39,16 @@
 - Manual refresh button
 - Responsive design
 
-## Next Phases
-
 ### Phase 5 — Automation Engine
-- Rule-based automation
-- Queueing and scheduling
-- Safe execution controls
-- Audit logging
+- AutomationJob entity with full lifecycle (Pending, Running, Paused, Retrying, Completed, Failed, Cancelled)
+- IAutomationService + AutomationService (enqueue, pause, resume, retry, cancel, stats)
+- IAutomationProgressService + AutomationProgressService (SignalR real-time broadcasts)
+- BackgroundJobWorker (IHostedService, channel-based queue, concurrent workers, retry logic)
+- Automation page with job creation, stats cards, job history table, lifecycle controls
+- Real-time auto-refresh via SignalR
+- No Instagram communication yet — placeholder execution awaiting Phase 6
+
+## Next Phases
 
 ### Phase 6 — Instagram Communication Engine
 - Communication workflows

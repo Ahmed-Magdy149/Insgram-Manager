@@ -10,5 +10,7 @@ public enum JobStatus
     Running = 1,
     Completed = 2,
     Failed = 3,
-    Cancelled = 4
+    Cancelled = 4,
+    Paused = 5,
+    Retrying = 6
 }
