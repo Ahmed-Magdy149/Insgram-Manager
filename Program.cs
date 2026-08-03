@@ -23,7 +23,10 @@ builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // --- SignalR ---
-builder.Services.AddSignalR();
+builder.Services.AddSignalR(options =>
+{
+    options.MaximumReceiveMessageSize = 100 * 1024 * 1024; // 100MB — matches Blazor circuit limit
+});
 
 // --- Application Services ---
 builder.Services.AddApplication();
@@ -33,6 +36,9 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 // --- Import Module (Phase 2 forward declarations) ---
 builder.Services.AddImport();
+
+// --- Communication Module (Phase 6 — Instagram Communication Engine) ---
+builder.Services.AddCommunication();
 
 // --- Background Worker (Phase 5 — Automation Engine) ---
 builder.Services.AddHostedService<Insgram_Manager.BackgroundJobs.BackgroundJobWorker>();

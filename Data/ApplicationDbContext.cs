@@ -24,6 +24,10 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<AutomationJob> AutomationJobs => Set<AutomationJob>();
 
+    public DbSet<InstagramSession> InstagramSessions => Set<InstagramSession>();
+
+    public DbSet<InstagramInteraction> InstagramInteractions => Set<InstagramInteraction>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Setting>(entity =>
@@ -85,6 +89,37 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.ParametersJson).HasMaxLength(8192);
             entity.Property(e => e.ErrorMessage).HasMaxLength(4096);
             entity.Property(e => e.ResultMessage).HasMaxLength(2048);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+        });
+
+        modelBuilder.Entity<InstagramSession>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.AccountKey).IsUnique();
+            entity.Property(e => e.AccountKey).IsRequired().HasMaxLength(128);
+            entity.Property(e => e.Username).IsRequired().HasMaxLength(256);
+            entity.Property(e => e.ProtectedAccessToken).HasMaxLength(8192);
+            entity.Property(e => e.ProtectedCookieHeader).HasMaxLength(8192);
+            entity.Property(e => e.ProtectedCsrfToken).HasMaxLength(1024);
+            entity.Property(e => e.Notes).HasMaxLength(2048);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+        });
+
+        modelBuilder.Entity<InstagramInteraction>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.AccountKey);
+            entity.HasIndex(e => e.CreatedAt);
+            entity.Property(e => e.AccountKey).IsRequired().HasMaxLength(128);
+            entity.Property(e => e.Action).IsRequired().HasMaxLength(128);
+            entity.Property(e => e.Method).IsRequired().HasMaxLength(16);
+            entity.Property(e => e.Endpoint).IsRequired().HasMaxLength(512);
+            entity.Property(e => e.Summary).HasMaxLength(2048);
+            entity.Property(e => e.Error).HasMaxLength(4096);
+            entity.Property(e => e.RequestBody).HasMaxLength(8192);
+            entity.Property(e => e.ResponseBody).HasMaxLength(8192);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
         });

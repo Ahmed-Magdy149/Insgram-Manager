@@ -1,0 +1,99 @@
+@page "/communication"
+@layout MainLayout
+@inherits CommunicationPageBase
+
+<PageTitle>Communication &middot; Insgram Manager</PageTitle>
+
+<div class="communication-page">
+    <div class="communication-header">
+        <div>
+            <h1 class="communication-title">Instagram Communication</h1>
+            <p class="communication-subtitle">Track sessions, request activity, and interaction history.</p>
+        </div>
+        <div class="communication-header-actions">
+            @if (IsLive)
+            {
+                <Tag Color="@("green")" Class="communication-live-tag">Live</Tag>
+            }
+            <Button Loading="@IsLoading" Icon="reload" OnClick="LoadAsync">Refresh</Button>
+        </div>
+    </div>
+
+    <div class="communication-stats">
+        <StatCard Icon="team" Label="Sessions" Value="@($"{Stats.TotalSessions:N0}")" Color="blue" />
+        <StatCard Icon="check-circle" Label="Authenticated" Value="@($"{Stats.AuthenticatedSessions:N0}")" Color="green" />
+        <StatCard Icon="clock-circle" Label="Expiring Soon" Value="@($"{Stats.ExpiringSoonSessions:N0}")" Color="orange" />
+        <StatCard Icon="history" Label="Interactions" Value="@($"{Stats.TotalInteractions:N0}")" Color="purple" />
+    </div>
+
+    <div class="communication-grid">
+        <Card Title="Sessions">
+            @if (Sessions.Count == 0)
+            {
+                <div class="communication-empty">No sessions have been stored yet.</div>
+            }
+            else
+            {
+                <Table TItem="Insgram_Manager.Communication.Models.InstagramSessionState"
+                       DataSource="@Sessions"
+                       Pagination="false">
+                    <PropertyColumn Property="x => x.AccountKey" Title="Account" />
+                    <PropertyColumn Property="x => x.Username" Title="Username" />
+                    <PropertyColumn Property="x => x.IsAuthenticated" Title="Status">
+                        <Tag Color="@GetStatusColor(context.IsAuthenticated)">@(context.IsAuthenticated ? "Authenticated" : "Disconnected")</Tag>
+                    </PropertyColumn>
+                    <PropertyColumn Property="x => x.LastAuthenticatedAt" Title="Last Auth" Format="yyyy-MM-dd HH:mm" />
+                    <PropertyColumn Property="x => x.ExpiresAt" Title="Expires" Format="yyyy-MM-dd HH:mm" />
+                </Table>
+            }
+        </Card>
+
+        <Card Title="Request Test">
+            <Space Style="width: 100%;">
+                <select @bind="SelectedAccountKey" class="communication-select">
+                    @foreach (var session in Sessions)
+                    {
+                        <option value="@session.AccountKey">@($"{session.Username} ({session.AccountKey})")</option>
+                    }
+                </select>
+                <Input @bind-Value="RequestEndpoint" Placeholder="Endpoint e.g. /me" />
+                <select @bind="RequestMethod" class="communication-select">
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                </select>
+                <textarea @bind="RequestBody" rows="4" class="communication-textarea" placeholder="Optional JSON body for POST requests"></textarea>
+                <Button Type="@ButtonType.Primary" Icon="send" OnClick="SendTestRequestAsync">Send Test Request</Button>
+                @if (!string.IsNullOrWhiteSpace(RequestResult))
+                {
+                    <Alert Message="@RequestResult" Type="@AlertType.Info" ShowIcon />
+                }
+            </Space>
+        </Card>
+    </div>
+
+    <div class="communication-section">
+        <Card Title="Interaction History">
+            @if (Interactions.Count == 0)
+            {
+                <div class="communication-empty">No interaction history available yet.</div>
+            }
+            else
+            {
+                <Table TItem="Insgram_Manager.Communication.Models.InstagramInteractionRecord"
+                       DataSource="@Interactions"
+                       >
+                    <PropertyColumn Property="x => x.Action" Title="Action" />
+                    <PropertyColumn Property="x => x.Endpoint" Title="Endpoint" />
+                    <PropertyColumn Property="x => x.Success" Title="Status">
+                        <Tag Color="@(context.Success ? "green" : "red")">@(context.Success ? "Success" : "Failed")</Tag>
+                    </PropertyColumn>
+                    <PropertyColumn Property="x => x.StatusCode" Title="Code" />
+                    <PropertyColumn Property="x => x.CreatedAt" Title="Time" Format="yyyy-MM-dd HH:mm" />
+                    <PropertyColumn Property="x => x.Duration" Title="Duration">
+                        @FormatDuration(context.Duration)
+                    </PropertyColumn>
+                </Table>
+            }
+        </Card>
+    </div>
+</div>

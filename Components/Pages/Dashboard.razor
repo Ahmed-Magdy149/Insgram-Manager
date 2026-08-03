@@ -54,14 +54,14 @@
             else
             {
                 <Descriptions Column="1" Bordered Size="@DescriptionsSize.Small">
-                    <DescriptionsItem Label="File">@LastImport.FileName</DescriptionsItem>
-                    <DescriptionsItem Label="Status">
+                    <DescriptionsItem Title="File">@LastImport.FileName</DescriptionsItem>
+                    <DescriptionsItem Title="Status">
                         <Tag Color="@GetStatusColor(LastImport.Status)">@LastImport.Status</Tag>
                     </DescriptionsItem>
-                    <DescriptionsItem Label="Accounts">@LastImport.AccountCount.ToString("N0")</DescriptionsItem>
-                    <DescriptionsItem Label="Relationships">@LastImport.RelationshipCount.ToString("N0")</DescriptionsItem>
-                    <DescriptionsItem Label="Duration">@FormatDuration(LastImport.Duration)</DescriptionsItem>
-                    <DescriptionsItem Label="Date">@LastImport.StartedAt.ToString("yyyy-MM-dd HH:mm")</DescriptionsItem>
+                    <DescriptionsItem Title="Accounts">@LastImport.AccountCount.ToString("N0")</DescriptionsItem>
+                    <DescriptionsItem Title="Relationships">@LastImport.RelationshipCount.ToString("N0")</DescriptionsItem>
+                    <DescriptionsItem Title="Duration">@FormatDuration(LastImport.Duration)</DescriptionsItem>
+                    <DescriptionsItem Title="Date">@LastImport.StartedAt.ToString("yyyy-MM-dd HH:mm")</DescriptionsItem>
                 </Descriptions>
             }
         </Card>
@@ -80,7 +80,7 @@
             {
                 <Table TItem="ImportHistoryItem"
                        DataSource="@ImportHistory"
-                       Pagination="false">
+                       >
                     <PropertyColumn Property="x => x.FileName" Title="File" />
                     <PropertyColumn Property="x => x.Status" Title="Status">
                         <Tag Color="@GetStatusColor(context.Status)">@context.Status</Tag>
@@ -109,7 +109,7 @@
             {
                 <Table TItem="Insgram_Manager.Domain.Entities.InstagramAccount"
                        DataSource="@RecentAccounts"
-                       Pagination="false">
+                       >
                     <PropertyColumn Property="c => c.Username" Title="Username" />
                     <PropertyColumn Property="c => c.FullName" Title="Full Name" />
                     <PropertyColumn Property="c => c.FollowerCount" Title="Followers" />

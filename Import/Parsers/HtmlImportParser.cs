@@ -228,22 +228,28 @@ public sealed partial class HtmlImportParser : IInstagramImportParser
     {
         var name = Path.GetFileNameWithoutExtension(fileName).ToLowerInvariant();
 
-        if (name.Contains("follower") && !name.Contains("following"))
-            return RelationshipType.Followers;
-
-        if (name.Contains("following"))
-            return RelationshipType.Following;
-
         if (name.Contains("pending") || name.Contains("pending_follow"))
             return RelationshipType.PendingRequests;
-
-        if (name.Contains("blocked"))
-            return RelationshipType.Blocked;
 
         if (name.Contains("recent_follow_request"))
             return RelationshipType.RecentFollowRequests;
 
+        if (name.Contains("follower") && !name.Contains("following"))
+            return RelationshipType.Followers;
+
+        if (name.Contains("following") && !name.Contains("hashtag"))
+            return RelationshipType.Following;
+
+        if (name.Contains("blocked"))
+            return RelationshipType.Blocked;
+
         if (name.Contains("removed_suggestion") || name.Contains("removed"))
+            return RelationshipType.RemovedSuggestions;
+
+        if (name.Contains("unfollowed"))
+            return RelationshipType.RemovedSuggestions;
+
+        if (name.Contains("favorited") || name.Contains("favorite"))
             return RelationshipType.RemovedSuggestions;
 
         return null;
@@ -251,44 +257,119 @@ public sealed partial class HtmlImportParser : IInstagramImportParser
 
     /// <summary>
     /// Parses a list of Instagram account relationships from an HTML document.
-    /// Looks for anchor links that reference Instagram profile URLs and extracts the username.
+    /// Supports two HTML structures used by Instagram exports:
+    /// 1. Link-based: &lt;a href="https://www.instagram.com/username"&gt; — used by followers/following lists.
+    /// 2. Table-based: &lt;table&gt;&lt;tr&gt;&lt;td&gt;Username&lt;/td&gt;&lt;td&gt;value&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt; — used by pending follow requests.
     /// </summary>
     private List<InstagramRelationshipModel> ParseRelationships(HtmlDocument doc, string sourceFileName, RelationshipType type, List<string> errors)
     {
         var relationships = new List<InstagramRelationshipModel>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var nodes = doc.DocumentNode.SelectNodes("//a[@href]") ??
-                    doc.DocumentNode.SelectNodes("//a");
 
-        if (nodes is null || nodes.Count == 0)
+        var linkNodes = doc.DocumentNode.SelectNodes("//a[@href]");
+        if (linkNodes is not null && linkNodes.Count > 0)
         {
-            errors.Add($"No relationship links found in {sourceFileName}");
-            return relationships;
+            foreach (var node in linkNodes)
+            {
+                var href = node.GetAttributeValue("href", string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(href))
+                    continue;
+
+                // Instagram profile URLs: https://www.instagram.com/username/ or /_u/username/
+                var match = InstagramProfileUrlRegex().Match(href);
+                if (!match.Success)
+                    continue;
+
+                var username = match.Groups[1].Value.Trim();
+                if (string.IsNullOrWhiteSpace(username))
+                    continue;
+
+                // Instagram usernames are at most 30 characters and cannot contain certain characters.
+                if (username.Length > 30 || username.Contains("..."))
+                    continue;
+
+                if (!seen.Add(username))
+                    continue;
+
+                var fullName = node.InnerText?.Trim();
+                if (string.Equals(fullName, username, StringComparison.OrdinalIgnoreCase) || string.Equals(fullName, href, StringComparison.OrdinalIgnoreCase))
+                    fullName = null;
+
+                relationships.Add(new InstagramRelationshipModel
+                {
+                    Username = username,
+                    FullName = string.IsNullOrWhiteSpace(fullName) ? null : fullName,
+                    ProfileUrl = href,
+                    RelationshipType = type
+                });
+            }
         }
 
-        foreach (var node in nodes)
+        // If no link-based entries were found, try table-based parsing (e.g. pending_follow_requests)
+        if (relationships.Count == 0)
         {
-            var href = node.GetAttributeValue("href", string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(href))
+            var tableEntries = ParseTableBasedRelationships(doc, seen, type);
+            if (tableEntries.Count > 0)
+                relationships.AddRange(tableEntries);
+        }
+
+        if (relationships.Count == 0)
+            errors.Add($"No relationship entries found in {sourceFileName}");
+
+        return relationships;
+    }
+
+    /// <summary>
+    /// Parses table-based relationship entries where each entry is a &lt;table&gt; with
+    /// rows containing "Name" and "Username" label/value pairs.
+    /// This structure is used by Instagram export files like pending_follow_requests.html.
+    /// </summary>
+    private List<InstagramRelationshipModel> ParseTableBasedRelationships(
+        HtmlDocument doc,
+        HashSet<string> seen,
+        RelationshipType type)
+    {
+        var relationships = new List<InstagramRelationshipModel>();
+        var tables = doc.DocumentNode.SelectNodes("//table");
+        if (tables is null || tables.Count == 0)
+            return relationships;
+
+        foreach (var table in tables)
+        {
+            string? username = null;
+            string? fullName = null;
+
+            var rows = table.SelectNodes(".//tr");
+            if (rows is null)
                 continue;
 
-            // Instagram profile URLs: https://www.instagram.com/username/ or /username/
-            var match = InstagramProfileUrlRegex().Match(href);
-            if (!match.Success)
-                continue;
+            foreach (var row in rows)
+            {
+                var cells = row.SelectNodes(".//td");
+                if (cells is null || cells.Count < 2)
+                    continue;
 
-            var username = match.Groups[1].Value.Trim();
+                var label = cells[0].InnerText?.Trim().ToLowerInvariant();
+                var value = cells[1].InnerText?.Trim();
+
+                if (string.IsNullOrWhiteSpace(value))
+                    continue;
+
+                if (label == "username")
+                    username = value;
+                else if (label == "name")
+                    fullName = value;
+            }
+
             if (string.IsNullOrWhiteSpace(username))
                 continue;
 
-            // Instagram usernames are at most 30 characters and cannot contain certain characters.
             if (username.Length > 30 || username.Contains("..."))
                 continue;
 
             if (!seen.Add(username))
                 continue;
 
-            var fullName = node.InnerText?.Trim();
             if (string.Equals(fullName, username, StringComparison.OrdinalIgnoreCase))
                 fullName = null;
 
@@ -296,7 +377,7 @@ public sealed partial class HtmlImportParser : IInstagramImportParser
             {
                 Username = username,
                 FullName = string.IsNullOrWhiteSpace(fullName) ? null : fullName,
-                ProfileUrl = href,
+                ProfileUrl = $"https://www.instagram.com/{username}/",
                 RelationshipType = type
             });
         }
@@ -304,7 +385,7 @@ public sealed partial class HtmlImportParser : IInstagramImportParser
         return relationships;
     }
 
-    [GeneratedRegex("(?:https?://(?:www\\.)?instagram\\.com)?/([^/\\?\"'\\s<>]+)/?")]
+    [GeneratedRegex("(?:https?://(?:www\\.)?instagram\\.com)?/(?:_u/)?([^/\\?\"'\\s<>]+)/?")]
     private static partial Regex InstagramProfileUrlRegex();
 
     private static ImportResult BuildResult(

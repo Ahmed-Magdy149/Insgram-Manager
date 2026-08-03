@@ -130,7 +130,6 @@ public sealed class ImportService : IImportService
                     errors.AddRange(parseResult.Errors);
                 }
 
-                statistics.ProcessedRecords.ToString(); // Trigger computed property
                 await _progressService.NotifyProgressAsync(sessionId, statistics, ImportSessionStatus.Processing);
             }
 
@@ -154,7 +153,7 @@ public sealed class ImportService : IImportService
             return BuildResult(
                 success: errors.Count == 0,
                 totalRecords: statistics.TotalRecords,
-                importedRecords: savedCount.accountCount,
+                importedRecords: savedCount.accountCount + savedCount.relationshipCount,
                 skippedRecords: statistics.SkippedRecords,
                 errors: errors,
                 sessionId: sessionId);

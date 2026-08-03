@@ -15,6 +15,8 @@ namespace Insgram_Manager.Components.Pages;
 /// </summary>
 public class ImportPageBase : BaseComponent, IAsyncDisposable
 {
+    private const long MaxUploadSizeBytes = 100L * 1024L * 1024L;
+
     [Inject]
     private Insgram_Manager.Interfaces.IImportService ImportService { get; set; } = default!;
 
@@ -88,16 +90,29 @@ public class ImportPageBase : BaseComponent, IAsyncDisposable
         if (IsImporting)
             return;
 
-        var file = e.File;
-        var extension = Path.GetExtension(file.Name);
-        if (!string.Equals(extension, ".zip", StringComparison.OrdinalIgnoreCase))
+        try
         {
-            MessageService.Error("Please select a ZIP file.");
-            return;
-        }
+            var file = e.File;
+            var extension = Path.GetExtension(file.Name);
+            if (!string.Equals(extension, ".zip", StringComparison.OrdinalIgnoreCase))
+            {
+                MessageService.Error("Please select a ZIP file.");
+                return;
+            }
 
-        await using var stream = file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
-        await ProcessImportAsync(file.Name, stream);
+            if (file.Size > MaxUploadSizeBytes)
+            {
+                MessageService.Error($"The selected file is too large. Maximum allowed size is {MaxUploadSizeBytes / (1024 * 1024)} MB.");
+                return;
+            }
+
+            await using var stream = file.OpenReadStream(maxAllowedSize: MaxUploadSizeBytes);
+            await ProcessImportAsync(file.Name, stream);
+        }
+        catch (Exception ex)
+        {
+            await HandleErrorAsync($"Failed to open or process the selected file: {ex.Message}", ex);
+        }
     }
 
     protected void Reset()

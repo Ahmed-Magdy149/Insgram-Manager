@@ -13,11 +13,11 @@
         <Card Class="import-summary-card">
             <Title Level="4">Import Summary</Title>
             <Descriptions Column="3" Bordered>
-                <DescriptionsItem Label="Status">@ResultStatus</DescriptionsItem>
-                <DescriptionsItem Label="Total Files">@LastResult.TotalRecords</DescriptionsItem>
-                <DescriptionsItem Label="Imported">@LastResult.ImportedRecords</DescriptionsItem>
-                <DescriptionsItem Label="Skipped">@LastResult.SkippedRecords</DescriptionsItem>
-                <DescriptionsItem Label="Errors">@LastResult.Errors.Count</DescriptionsItem>
+                <DescriptionsItem Title="Status">@ResultStatus</DescriptionsItem>
+                <DescriptionsItem Title="Total Files">@LastResult.TotalRecords</DescriptionsItem>
+                <DescriptionsItem Title="Imported">@LastResult.ImportedRecords</DescriptionsItem>
+                <DescriptionsItem Title="Skipped">@LastResult.SkippedRecords</DescriptionsItem>
+                <DescriptionsItem Title="Errors">@LastResult.Errors.Count</DescriptionsItem>
             </Descriptions>
             @if (LastResult.Errors.Count > 0)
             {

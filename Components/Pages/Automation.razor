@@ -68,7 +68,7 @@
             {
                 <Table TItem="AutomationJobDto"
                        DataSource="@Jobs"
-                       Pagination="false">
+                       >
                     <PropertyColumn Property="x => x.Type" Title="Type">
                         @GetTypeLabel(context.Type)
                     </PropertyColumn>
