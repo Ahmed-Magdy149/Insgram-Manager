@@ -12,6 +12,8 @@ public interface IInstagramSessionService
 
     Task LoginAsync(string username, string password);
 
+    Task CompleteTwoFactorLoginAsync(string verificationCode, string? verificationMethod = null);
+
     Task LogoutAsync(string accountKey);
 
     Task<string?> GetSessionTokenAsync(string accountKey);

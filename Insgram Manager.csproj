@@ -7,6 +7,8 @@
     <RootNamespace>Insgram_Manager</RootNamespace>
     <AssemblyName>$(AssemblyName.Replace(' ', '_'))</AssemblyName>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <GenerateEmbeddedValidatableTypeAttribute>false</GenerateEmbeddedValidatableTypeAttribute>
+    <IncludeEmbeddedValidationGlobalUsing>false</IncludeEmbeddedValidationGlobalUsing>
   </PropertyGroup>
 
   <ItemGroup>

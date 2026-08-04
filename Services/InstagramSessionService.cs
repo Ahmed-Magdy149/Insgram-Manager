@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Insgram_Manager.Communication.Models;
@@ -18,6 +20,12 @@ public sealed class InstagramSessionService : IInstagramSessionService
 {
     private const string StoreSettingsKey = "instagram.communication.store";
     private const string ProtectPurpose = "InstagramCommunicationStoreV1";
+    private const string WebBaseUrl = "https://www.instagram.com";
+    private const string LoginPagePath = "/accounts/login/";
+    private const string LoginAjaxPath = "/api/v1/web/accounts/login/ajax/";
+    private const string TwoFactorLoginAjaxPath = "/api/v1/web/accounts/login/ajax/two_factor/";
+    private const string BrowserUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
+    private const string InstagramAppId = "936619743392459";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -30,6 +38,7 @@ public sealed class InstagramSessionService : IInstagramSessionService
     private readonly IInstagramCommunicationProgressService _progressService;
     private readonly IDataProtector _protector;
     private readonly ILogger<InstagramSessionService> _logger;
+    private PendingTwoFactorLogin? _pendingTwoFactorLogin;
 
     public InstagramSessionService(
         IDbContextFactory<ApplicationDbContext> contextFactory,
@@ -60,26 +69,163 @@ public sealed class InstagramSessionService : IInstagramSessionService
         return true;
     }
 
+    private static bool TryCreateChallengeRequired(JsonElement root, out InstagramChallengeRequiredException challengeException)
+    {
+        challengeException = default!;
+
+        var message = GetString(root, "message");
+        var errorType = GetString(root, "error_type");
+
+        var hasChallengeRequiredSignal = string.Equals(message, "challenge_required", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(errorType, "checkpoint_challenge_required", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(errorType, "challenge_required", StringComparison.OrdinalIgnoreCase);
+
+        if (!hasChallengeRequiredSignal && !root.TryGetProperty("challenge", out _))
+            return false;
+
+        if (!root.TryGetProperty("challenge", out var challengeElement) || challengeElement.ValueKind != JsonValueKind.Object)
+            return false;
+
+        var challengeUrl = NormalizeChallengeUrl(GetString(challengeElement, "url") ?? GetString(challengeElement, "api_path"));
+        var nativeFlow = challengeElement.TryGetProperty("native_flow", out var nativeFlowElement) && nativeFlowElement.ValueKind == JsonValueKind.True;
+
+        var challengeMessage = nativeFlow
+            ? "Instagram requires manual confirmation in the official Instagram app or web flow. No SMS was sent from this request."
+            : "Instagram returned a manual checkpoint challenge instead of an SMS verification code.";
+
+        challengeException = new InstagramChallengeRequiredException(challengeUrl, challengeMessage, nativeFlow);
+        return true;
+    }
+
+    private static string? NormalizeChallengeUrl(string? challengeUrl)
+    {
+        if (string.IsNullOrWhiteSpace(challengeUrl))
+            return null;
+
+        if (Uri.TryCreate(challengeUrl, UriKind.Absolute, out var absoluteUri))
+            return absoluteUri.ToString();
+
+        if (challengeUrl.StartsWith('/'))
+            return $"{WebBaseUrl}{challengeUrl}";
+
+        return $"{WebBaseUrl}/{challengeUrl.TrimStart('/')}";
+    }
+
     public async Task LoginAsync(string username, string password)
     {
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
             throw new ArgumentException("Username and password are required for Instagram login.");
 
-        var accountKey = username.ToLowerInvariant();
-        var session = new InstagramSessionState
+        username = username.Trim();
+
+        var cookieContainer = new CookieContainer();
+        using var httpClient = CreateLoginHttpClient(cookieContainer);
+
+        using var loginPageResponse = await httpClient.GetAsync(LoginPagePath, HttpCompletionOption.ResponseHeadersRead);
+        loginPageResponse.EnsureSuccessStatusCode();
+
+        var csrfToken = GetCookieValue(cookieContainer, "csrftoken");
+        if (string.IsNullOrWhiteSpace(csrfToken))
+            throw new InvalidOperationException("Instagram did not return a CSRF token for the login flow.");
+
+        using var loginRequest = new HttpRequestMessage(HttpMethod.Post, LoginAjaxPath)
         {
-            AccountKey = accountKey,
-            Username = username,
-            IsAuthenticated = true,
-            CreatedAt = DateTime.UtcNow,
-            LastAuthenticatedAt = DateTime.UtcNow,
-            LastRefreshedAt = DateTime.UtcNow,
-            ExpiresAt = DateTime.UtcNow.AddHours(24),
-            Notes = "Session created via credential login."
+            Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["username"] = username,
+                ["enc_password"] = BuildEncryptedPassword(password),
+                ["queryParams"] = "{}",
+                ["optIntoOneTap"] = "false",
+                ["stopDeletionNonce"] = string.Empty,
+                ["trustedDeviceRecords"] = "{}"
+            })
         };
 
-        await UpsertSessionAsync(session);
+        loginRequest.Headers.Referrer = new Uri($"{WebBaseUrl}{LoginPagePath}");
+        loginRequest.Headers.TryAddWithoutValidation("X-CSRFToken", csrfToken);
+        loginRequest.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+        loginRequest.Headers.TryAddWithoutValidation("X-IG-App-ID", InstagramAppId);
+        loginRequest.Headers.TryAddWithoutValidation("Origin", WebBaseUrl);
+
+        using var loginResponse = await httpClient.SendAsync(loginRequest, HttpCompletionOption.ResponseContentRead);
+        var loginResponseBody = await loginResponse.Content.ReadAsStringAsync();
+        using var loginDocument = ParseLoginResponse(loginResponse, loginResponseBody);
+        var root = loginDocument.RootElement;
+
+        if (TryCreateTwoFactorChallenge(root, username, csrfToken, cookieContainer, out var challenge))
+        {
+            _pendingTwoFactorLogin = challenge;
+            throw new InstagramTwoFactorRequiredException(
+                username,
+                challenge.TwoFactorIdentifier,
+                challenge.ChallengeMessage,
+                challenge.AvailableMethods);
+        }
+
+        if (TryCreateChallengeRequired(root, out var challengeRequiredException))
+            throw challengeRequiredException;
+
+        if (!loginResponse.IsSuccessStatusCode)
+            throw BuildLoginFailureException(loginResponse, loginResponseBody, root);
+
+        var authenticated = root.TryGetProperty("authenticated", out var authenticatedElement) && authenticatedElement.GetBoolean();
+
+        if (!authenticated)
+            throw BuildLoginFailureException(loginResponse, loginResponseBody, root);
+
+        await StoreAuthenticatedSessionAsync(username, cookieContainer, loginResponse, root, csrfToken, "Session created via Instagram credential login.");
+        _pendingTwoFactorLogin = null;
         _logger.LogInformation("Instagram login session stored for user {Username}", username);
+    }
+
+    public async Task CompleteTwoFactorLoginAsync(string verificationCode, string? verificationMethod = null)
+    {
+        if (string.IsNullOrWhiteSpace(verificationCode))
+            throw new ArgumentException("A two-factor verification code is required.");
+
+        var pending = _pendingTwoFactorLogin;
+        if (pending is null)
+            throw new InvalidOperationException("There is no pending Instagram two-factor challenge to complete.");
+
+        using var httpClient = CreateLoginHttpClient(pending.CookieContainer);
+
+        using var twoFactorRequest = new HttpRequestMessage(HttpMethod.Post, TwoFactorLoginAjaxPath)
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["identifier"] = pending.TwoFactorIdentifier,
+                ["queryParams"] = "{}",
+                ["trust_signal"] = "true",
+                ["username"] = pending.Username,
+                ["verification_method"] = string.IsNullOrWhiteSpace(verificationMethod) ? pending.DefaultVerificationMethod : verificationMethod,
+                ["verificationCode"] = verificationCode.Trim()
+            })
+        };
+
+        twoFactorRequest.Headers.Referrer = new Uri($"{WebBaseUrl}{LoginPagePath}");
+        twoFactorRequest.Headers.TryAddWithoutValidation("X-CSRFToken", pending.CsrfToken);
+        twoFactorRequest.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+        twoFactorRequest.Headers.TryAddWithoutValidation("X-IG-App-ID", InstagramAppId);
+        twoFactorRequest.Headers.TryAddWithoutValidation("Origin", WebBaseUrl);
+
+        using var twoFactorResponse = await httpClient.SendAsync(twoFactorRequest, HttpCompletionOption.ResponseContentRead);
+        var twoFactorResponseBody = await twoFactorResponse.Content.ReadAsStringAsync();
+        using var twoFactorDocument = ParseLoginResponse(twoFactorResponse, twoFactorResponseBody);
+        var root = twoFactorDocument.RootElement;
+
+        if (TryCreateChallengeRequired(root, out var challengeRequiredException))
+            throw challengeRequiredException;
+
+        if (!twoFactorResponse.IsSuccessStatusCode)
+            throw BuildLoginFailureException(twoFactorResponse, twoFactorResponseBody, root);
+
+        var authenticated = root.TryGetProperty("authenticated", out var authenticatedElement) && authenticatedElement.GetBoolean();
+        if (!authenticated)
+            throw BuildLoginFailureException(twoFactorResponse, twoFactorResponseBody, root);
+
+        await StoreAuthenticatedSessionAsync(pending.Username, pending.CookieContainer, twoFactorResponse, root, pending.CsrfToken, "Session created via Instagram credential login after two-factor verification.");
+        _pendingTwoFactorLogin = null;
+        _logger.LogInformation("Instagram two-factor login session stored for user {Username}", pending.Username);
     }
 
     public async Task LogoutAsync(string accountKey)
@@ -297,6 +443,269 @@ public sealed class InstagramSessionService : IInstagramSessionService
         }
     }
 
+    private static string BuildEncryptedPassword(string password)
+    {
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        return $"#PWD_INSTAGRAM_BROWSER:0:{timestamp}:{password}";
+    }
+
+    private static string? GetCookieValue(CookieContainer cookieContainer, string cookieName)
+    {
+        var cookies = cookieContainer.GetCookies(new Uri(WebBaseUrl));
+        foreach (Cookie cookie in cookies)
+        {
+            if (string.Equals(cookie.Name, cookieName, StringComparison.OrdinalIgnoreCase))
+                return cookie.Value;
+        }
+
+        return null;
+    }
+
+    private static HttpClient CreateLoginHttpClient(CookieContainer cookieContainer)
+    {
+        var handler = new HttpClientHandler
+        {
+            AllowAutoRedirect = true,
+            UseCookies = true,
+            CookieContainer = cookieContainer
+        };
+
+        var httpClient = new HttpClient(handler)
+        {
+            BaseAddress = new Uri(WebBaseUrl),
+            Timeout = TimeSpan.FromSeconds(30)
+        };
+
+        httpClient.DefaultRequestHeaders.UserAgent.Clear();
+        httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent);
+        httpClient.DefaultRequestHeaders.Accept.Clear();
+        httpClient.DefaultRequestHeaders.Accept.ParseAdd("application/json, text/plain, */*");
+        httpClient.DefaultRequestHeaders.AcceptLanguage.ParseAdd("en-US,en;q=0.9");
+        httpClient.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+        httpClient.DefaultRequestHeaders.TryAddWithoutValidation("X-IG-App-ID", InstagramAppId);
+        httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Origin", WebBaseUrl);
+
+        return httpClient;
+    }
+
+    private static JsonDocument ParseLoginResponse(HttpResponseMessage response, string responseBody)
+    {
+        try
+        {
+            return JsonDocument.Parse(responseBody);
+        }
+        catch (JsonException ex)
+        {
+            var snippet = Truncate(responseBody, 800);
+            throw new InvalidOperationException($"Instagram login request failed with HTTP {(int)response.StatusCode}. Response: {snippet}", ex);
+        }
+    }
+
+    private async Task StoreAuthenticatedSessionAsync(
+        string username,
+        CookieContainer cookieContainer,
+        HttpResponseMessage loginResponse,
+        JsonElement root,
+        string fallbackCsrfToken,
+        string notes)
+    {
+        var accountKey = username.ToLowerInvariant();
+        var sessionId = GetCookieValue(cookieContainer, "sessionid") ?? GetCookieValueFromResponse(loginResponse, "sessionid");
+        var responseCsrfToken = GetCookieValue(cookieContainer, "csrftoken") ?? GetCookieValueFromResponse(loginResponse, "csrftoken");
+        var dsUserId = GetCookieValue(cookieContainer, "ds_user_id")
+            ?? GetCookieValueFromResponse(loginResponse, "ds_user_id")
+            ?? (root.TryGetProperty("userId", out var userIdElement)
+                ? (userIdElement.ValueKind == JsonValueKind.String ? userIdElement.GetString() : userIdElement.GetRawText())
+                : null);
+
+        if (string.IsNullOrWhiteSpace(sessionId))
+            throw new InvalidOperationException("Instagram login succeeded but no session cookie was returned.");
+
+        responseCsrfToken ??= fallbackCsrfToken;
+
+        var cookieParts = new List<string>
+        {
+            $"sessionid={sessionId.Trim()}"
+        };
+
+        if (!string.IsNullOrWhiteSpace(responseCsrfToken))
+            cookieParts.Add($"csrftoken={responseCsrfToken.Trim()}");
+
+        if (!string.IsNullOrWhiteSpace(dsUserId))
+            cookieParts.Add($"ds_user_id={dsUserId.Trim().Trim('\"')}");
+
+        var session = new InstagramSessionState
+        {
+            AccountKey = accountKey,
+            Username = username,
+            AccessToken = null,
+            CookieHeader = string.Join("; ", cookieParts),
+            CsrfToken = responseCsrfToken,
+            IsAuthenticated = true,
+            CreatedAt = DateTime.UtcNow,
+            LastAuthenticatedAt = DateTime.UtcNow,
+            LastRefreshedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddHours(24),
+            Notes = notes
+        };
+
+        var stored = await UpsertSessionAsync(session);
+        if (!stored)
+            throw new InvalidOperationException("Instagram login succeeded, but the session could not be stored.");
+    }
+
+    private static string? GetCookieValueFromResponse(HttpResponseMessage response, string cookieName)
+    {
+        if (!response.Headers.TryGetValues("Set-Cookie", out var values))
+            return null;
+
+        foreach (var value in values)
+        {
+            var prefix = $"{cookieName}=";
+            if (!value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var endIndex = value.IndexOf(';');
+            return endIndex > 0 ? value[prefix.Length..endIndex] : value[prefix.Length..];
+        }
+
+        return null;
+    }
+
+    private static string Truncate(string value, int maxLength)
+    {
+        if (string.IsNullOrEmpty(value) || value.Length <= maxLength)
+            return value;
+
+        return value[..maxLength] + "...";
+    }
+
+    private static bool TryCreateTwoFactorChallenge(
+        JsonElement root,
+        string username,
+        string csrfToken,
+        CookieContainer cookieContainer,
+        out PendingTwoFactorLogin challenge)
+    {
+        challenge = default!;
+
+        var isTwoFactorRequired = root.TryGetProperty("two_factor_required", out var twoFactorRequiredElement) && twoFactorRequiredElement.GetBoolean();
+        var errorType = root.TryGetProperty("error_type", out var errorTypeElement)
+            ? errorTypeElement.GetString()
+            : null;
+
+        if (!isTwoFactorRequired && !string.Equals(errorType, "two_factor_required", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (!root.TryGetProperty("two_factor_info", out var twoFactorInfoElement) || twoFactorInfoElement.ValueKind != JsonValueKind.Object)
+            return false;
+
+        var twoFactorIdentifier = GetString(twoFactorInfoElement, "two_factor_identifier");
+        if (string.IsNullOrWhiteSpace(twoFactorIdentifier))
+            return false;
+
+        var normalizedUsername = GetString(twoFactorInfoElement, "username") ?? username;
+        var availableMethods = GetAvailableTwoFactorMethods(twoFactorInfoElement);
+        var challengeMessage = BuildTwoFactorChallengeMessage(normalizedUsername, twoFactorInfoElement, availableMethods);
+
+        challenge = new PendingTwoFactorLogin(
+            normalizedUsername,
+            twoFactorIdentifier,
+            cookieContainer,
+            csrfToken,
+            challengeMessage,
+            availableMethods,
+            GetDefaultVerificationMethod(availableMethods));
+
+        return true;
+    }
+
+    private static string BuildTwoFactorChallengeMessage(string username, JsonElement twoFactorInfoElement, IReadOnlyList<string> availableMethods)
+    {
+        var phoneHint = GetString(twoFactorInfoElement, "obfuscated_phone_number_2")
+            ?? GetString(twoFactorInfoElement, "obfuscated_phone_number");
+
+        var methodText = availableMethods.Count > 0
+            ? $"Available methods: {string.Join(", ", availableMethods.Select(DescribeTwoFactorMethod))}."
+            : string.Empty;
+        var phoneText = string.IsNullOrWhiteSpace(phoneHint) ? string.Empty : $" Destination: {phoneHint}.";
+
+        return $"Instagram requires a two-factor verification code for {username}.{(string.IsNullOrWhiteSpace(methodText) ? string.Empty : $" {methodText}")}{phoneText}".Trim();
+    }
+
+    private static IReadOnlyList<string> GetAvailableTwoFactorMethods(JsonElement twoFactorInfoElement)
+    {
+        var methods = new List<string>();
+
+        if (GetBoolean(twoFactorInfoElement, "sms_two_factor_on"))
+            methods.Add("sms");
+
+        if (GetBoolean(twoFactorInfoElement, "totp_two_factor_on"))
+            methods.Add("totp");
+
+        if (GetBoolean(twoFactorInfoElement, "whatsapp_two_factor_on"))
+            methods.Add("whatsapp");
+
+        return methods;
+    }
+
+    private static string GetDefaultVerificationMethod(IReadOnlyList<string> availableMethods)
+    {
+        if (availableMethods.Contains("sms", StringComparer.OrdinalIgnoreCase))
+            return "1";
+
+        if (availableMethods.Contains("totp", StringComparer.OrdinalIgnoreCase))
+            return "3";
+
+        return "6";
+    }
+
+    private static string DescribeTwoFactorMethod(string method)
+    {
+        return method.ToLowerInvariant() switch
+        {
+            "sms" => "SMS",
+            "totp" => "Authenticator app",
+            "whatsapp" => "WhatsApp",
+            _ => method
+        };
+    }
+
+    private static string? GetString(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var property))
+            return null;
+
+        return property.ValueKind == JsonValueKind.String ? property.GetString() : property.GetRawText();
+    }
+
+    private static bool GetBoolean(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var property))
+            return false;
+
+        return property.ValueKind == JsonValueKind.True
+            || (property.ValueKind == JsonValueKind.False && property.GetBoolean());
+    }
+
+    private static InvalidOperationException BuildLoginFailureException(HttpResponseMessage response, string responseBody, JsonElement root)
+    {
+        var message = root.TryGetProperty("message", out var messageElement)
+            ? messageElement.GetString()
+            : null;
+
+        var errorType = root.TryGetProperty("error_type", out var errorTypeElement)
+            ? errorTypeElement.GetString()
+            : null;
+
+        var detail = string.Join(" ", new[] { message, errorType }.Where(value => !string.IsNullOrWhiteSpace(value)));
+        var snippet = Truncate(responseBody, 800);
+
+        return new InvalidOperationException(string.IsNullOrWhiteSpace(detail)
+            ? $"Instagram login request failed with HTTP {(int)response.StatusCode}. Response: {snippet}"
+            : $"Instagram login request failed with HTTP {(int)response.StatusCode}. {detail}. Response: {snippet}");
+    }
+
     private InstagramSessionState Map(InstagramSession entity)
     {
         return new InstagramSessionState
@@ -365,4 +774,58 @@ public sealed class InstagramSessionService : IInstagramSessionService
 
         await context.SaveChangesAsync();
     }
+
+    private sealed record PendingTwoFactorLogin(
+        string Username,
+        string TwoFactorIdentifier,
+        CookieContainer CookieContainer,
+        string CsrfToken,
+        string ChallengeMessage,
+        IReadOnlyList<string> AvailableMethods,
+        string DefaultVerificationMethod);
+}
+
+public sealed class InstagramTwoFactorRequiredException : InvalidOperationException
+{
+    public InstagramTwoFactorRequiredException(
+        string username,
+        string twoFactorIdentifier,
+        string challengeMessage,
+        IReadOnlyList<string>? availableMethods = null)
+        : base(string.IsNullOrWhiteSpace(challengeMessage)
+            ? $"Instagram requires a two-factor verification code for {username}."
+            : challengeMessage)
+    {
+        Username = username;
+        TwoFactorIdentifier = twoFactorIdentifier;
+        ChallengeMessage = challengeMessage;
+        AvailableMethods = availableMethods ?? Array.Empty<string>();
+    }
+
+    public string Username { get; }
+
+    public string TwoFactorIdentifier { get; }
+
+    public string ChallengeMessage { get; }
+
+    public IReadOnlyList<string> AvailableMethods { get; }
+}
+
+public sealed class InstagramChallengeRequiredException : InvalidOperationException
+{
+    public InstagramChallengeRequiredException(string? challengeUrl, string challengeMessage, bool nativeFlow)
+        : base(string.IsNullOrWhiteSpace(challengeMessage)
+            ? "Instagram requires manual confirmation in the official Instagram app or web flow."
+            : challengeMessage)
+    {
+        ChallengeUrl = challengeUrl;
+        ChallengeMessage = challengeMessage;
+        IsNativeFlow = nativeFlow;
+    }
+
+    public string? ChallengeUrl { get; }
+
+    public string ChallengeMessage { get; }
+
+    public bool IsNativeFlow { get; }
 }

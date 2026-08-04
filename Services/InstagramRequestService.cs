@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using Insgram_Manager.Communication.Models;
@@ -126,6 +127,31 @@ public sealed class InstagramRequestService : IInstagramRequestService
                 Duration = duration
             });
 
+            if (success)
+            {
+                var refreshedSession = session with
+                {
+                    IsAuthenticated = true,
+                    LastAuthenticatedAt = DateTime.UtcNow,
+                    LastRefreshedAt = DateTime.UtcNow,
+                    ExpiresAt = DateTime.UtcNow.AddHours(24)
+                };
+
+                await _sessionService.UpsertSessionAsync(refreshedSession);
+            }
+            else if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+            {
+                var disconnectedSession = session with
+                {
+                    IsAuthenticated = false,
+                    LastRefreshedAt = DateTime.UtcNow,
+                    ExpiresAt = DateTime.UtcNow,
+                    Notes = "Session marked disconnected after an unauthorized Instagram response."
+                };
+
+                await _sessionService.UpsertSessionAsync(disconnectedSession);
+            }
+
             return new InstagramApiResponse
             {
                 StatusCode = response.StatusCode,
@@ -165,11 +191,67 @@ public sealed class InstagramRequestService : IInstagramRequestService
         }
     }
 
+    public async Task<bool?> ProbeSessionAsync(string accountKey, string endpoint, CancellationToken cancellationToken = default)
+    {
+        var session = await _sessionService.GetSessionAsync(accountKey);
+        if (session is null || !session.IsAuthenticated)
+            return false;
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+
+        if (!string.IsNullOrWhiteSpace(session.AccessToken))
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+
+        if (!string.IsNullOrWhiteSpace(session.CookieHeader))
+            request.Headers.TryAddWithoutValidation("Cookie", session.CookieHeader);
+
+        if (!string.IsNullOrWhiteSpace(session.CsrfToken))
+            request.Headers.TryAddWithoutValidation("X-CSRFToken", session.CsrfToken);
+
+        request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+
+        try
+        {
+            using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead, cancellationToken);
+            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+                return true;
+
+            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden ||
+                responseBody.Contains("login_required", StringComparison.OrdinalIgnoreCase))
+            {
+                await MarkSessionDisconnectedAsync(session);
+                return false;
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Session probe failed for {AccountKey}.", accountKey);
+            return null;
+        }
+    }
+
     private static string? Truncate(string? value, int maxLength = 8192)
     {
         if (string.IsNullOrEmpty(value) || value.Length <= maxLength)
             return value;
 
         return value[..maxLength];
+    }
+
+    private async Task MarkSessionDisconnectedAsync(InstagramSessionState session)
+    {
+        var updated = session with
+        {
+            IsAuthenticated = false,
+            LastRefreshedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow,
+            Notes = "Session marked disconnected after an unauthorized Instagram response."
+        };
+
+        await _sessionService.UpsertSessionAsync(updated);
     }
 }

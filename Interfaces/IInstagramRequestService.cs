@@ -14,4 +14,9 @@ public interface IInstagramRequestService
         HttpContent? content = null,
         IReadOnlyDictionary<string, string>? headers = null,
         CancellationToken cancellationToken = default);
+
+    Task<bool?> ProbeSessionAsync(
+        string accountKey,
+        string endpoint,
+        CancellationToken cancellationToken = default);
 }
