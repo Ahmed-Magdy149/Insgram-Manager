@@ -24,6 +24,7 @@ public class DataExplorerPageBase : BaseComponent
 
     protected string SearchTerm { get; set; } = string.Empty;
     protected RelationshipType SelectedType { get; set; } = RelationshipType.Followers;
+    protected List<InstagramRelationship> SelectedRows { get; set; } = [];
 
     protected int PageIndex { get; set; } = 1;
     protected int PageSize { get; set; } = 10;
@@ -103,6 +104,77 @@ public class DataExplorerPageBase : BaseComponent
         PageIndex = query.PageIndex;
         PageSize = query.PageSize;
         await LoadDataAsync();
+    }
+
+    protected void OnSelectedRowsChanged(IEnumerable<InstagramRelationship> selectedRows)
+    {
+        SelectedRows = selectedRows.DistinctBy(r => r.Id).ToList();
+    }
+
+    protected async Task DeleteSelectedAsync()
+    {
+        if (SelectedRows.Count == 0)
+        {
+            MessageService.Warning("Select one or more rows first.");
+            return;
+        }
+
+        var confirmed = await ConfirmDeleteAsync(
+            $"Delete {SelectedRows.Count} selected record(s)? This cannot be undone.");
+
+        if (!confirmed)
+            return;
+
+        await using var context = await DbContextFactory.CreateDbContextAsync();
+
+        var ids = SelectedRows.Select(r => r.Id).ToArray();
+        var entities = await context.InstagramRelationships
+            .Where(r => ids.Contains(r.Id))
+            .ToListAsync();
+
+        if (entities.Count == 0)
+        {
+            MessageService.Info("No matching rows were found to delete.");
+            SelectedRows.Clear();
+            return;
+        }
+
+        context.InstagramRelationships.RemoveRange(entities);
+        await context.SaveChangesAsync();
+
+        SelectedRows.Clear();
+        await LoadDataAsync();
+        MessageService.Success($"Deleted {entities.Count} record(s).");
+    }
+
+    protected async Task DeleteRowAsync(InstagramRelationship item)
+    {
+        var confirmed = await ConfirmDeleteAsync(
+            $"Delete '{item.Username}' from the current view? This cannot be undone.");
+
+        if (!confirmed)
+            return;
+
+        await using var context = await DbContextFactory.CreateDbContextAsync();
+
+        var entity = await context.InstagramRelationships.FirstOrDefaultAsync(r => r.Id == item.Id);
+        if (entity is null)
+        {
+            MessageService.Info("The record was not found.");
+            return;
+        }
+
+        context.InstagramRelationships.Remove(entity);
+        await context.SaveChangesAsync();
+
+        SelectedRows = SelectedRows.Where(r => r.Id != item.Id).ToList();
+        await LoadDataAsync();
+        MessageService.Success($"Deleted '{item.Username}'.");
+    }
+
+    private async Task<bool> ConfirmDeleteAsync(string content)
+    {
+        return await DialogService.ConfirmAsync("Confirm deletion", content, "Delete", "Cancel");
     }
 
     protected string GetTagColor(RelationshipType type)

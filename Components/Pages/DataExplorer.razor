@@ -17,6 +17,8 @@
                        AllowClear />
             </div>
             <div class="data-explorer-actions">
+                <Button Type="@ButtonType.Default" Danger="true" Icon="delete" Disabled="@(SelectedRows.Count == 0)" OnClick="DeleteSelectedAsync" Title="Delete selected rows">
+                </Button>
                 <Button Type="@ButtonType.Default" Icon="download" OnClick="ExportCsvAsync">CSV Export</Button>
                 <Popover Title="Columns" Trigger="@(new[] { AntDesign.Trigger.Click })" Placement="AntDesign.Placement.BottomRight">
                     <ContentTemplate>
@@ -50,9 +52,21 @@
                Total="TotalCount"
                @bind-PageIndex="PageIndex"
                OnChange="OnTableChange"
+               RowKey="r => r.Id"
+               SelectedRows="SelectedRows"
+               SelectedRowsChanged="OnSelectedRowsChanged"
                PaginationPosition="bottom"
                Loading="IsLoading"
                Class="data-explorer-table">
+            <Selection Type="SelectionType.Checkbox" />
+            <ActionColumn Title="Actions" Width="72px" Align="ColumnAlign.Center">
+                <Button Type="@ButtonType.Default"
+                        Danger="true"
+                        Ghost="true"
+                        Icon="delete"
+                        Title="Delete this record"
+                        OnClick="@(() => DeleteRowAsync(context))" />
+            </ActionColumn>
             @if (ShowUsername)
             {
                 <PropertyColumn Property="c => c.Username" Title="Username" Sortable />
