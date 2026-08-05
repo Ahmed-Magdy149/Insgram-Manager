@@ -6,3 +6,17 @@ window.downloadFileFromStream = function (fileName, dataUri) {
     anchor.click();
     document.body.removeChild(anchor);
 };
+
+window.dataExplorer = window.dataExplorer || {};
+
+window.dataExplorer.openExternalUrl = function (url) {
+    if (!url) {
+        return;
+    }
+
+    const openedWindow = window.open(url, '_blank', 'noopener,noreferrer');
+
+    if (openedWindow) {
+        openedWindow.opener = null;
+    }
+};

@@ -77,11 +77,43 @@
         {
             <Card Class="data-explorer-session-card" Title="Create Instagram Session">
                 <div class="data-explorer-session-intro">
-                    <strong>Fill in each Instagram login value in its own field.</strong>
-                    <span>I will merge the cookie parts into one header in code before saving the session.</span>
+                    <strong>Log in to Instagram in the browser, then paste the cookie header here.</strong>
+                    <span>You can still fill the fields manually, but the raw Cookie header will auto-parse `sessionid`, `csrftoken`, and `ds_user_id` for you.</span>
                 </div>
 
                 <div class="data-explorer-session-form">
+                    <div class="data-explorer-session-actions">
+                        <Button Type="@ButtonType.Primary"
+                                Icon="global"
+                                OnClick="OpenInstagramLoginAsync">
+                            Open Instagram Login
+                        </Button>
+                    </div>
+
+                    <div class="data-explorer-session-group">
+                        <div class="data-explorer-session-group-title">Quick Import</div>
+
+                        <div class="data-explorer-session-field">
+                            <label for="new-session-cookie-header">Raw Cookie Header</label>
+                            <textarea id="new-session-cookie-header"
+                                      class="data-explorer-session-textarea"
+                                      rows="4"
+                                      @bind="NewSessionCookieHeader"
+                                      placeholder="Paste the Cookie header from the Instagram browser session here"></textarea>
+                            <div class="data-explorer-session-help">
+                                Paste the full `Cookie` header from the browser network/devtools view or a cookie-export extension.
+                            </div>
+                        </div>
+
+                        <div class="data-explorer-session-actions">
+                            <Button Type="@ButtonType.Default"
+                                    Icon="experiment"
+                                    OnClick="ParseSessionCookieHeader">
+                                Parse Cookies
+                            </Button>
+                        </div>
+                    </div>
+
                     <div class="data-explorer-session-group">
                         <div class="data-explorer-session-group-title">Required</div>
 

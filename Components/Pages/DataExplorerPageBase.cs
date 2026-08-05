@@ -73,6 +73,7 @@ public class DataExplorerPageBase : BaseComponent
     protected string NewSessionCsrfToken { get; set; } = string.Empty;
     protected string NewSessionDsUserId { get; set; } = string.Empty;
     protected string NewSessionAccessToken { get; set; } = string.Empty;
+    protected string NewSessionCookieHeader { get; set; } = string.Empty;
     protected string NewLoginUsername { get; set; } = string.Empty;
     protected string NewLoginPassword { get; set; } = string.Empty;
     protected string NewTwoFactorCode { get; set; } = string.Empty;
@@ -88,6 +89,7 @@ public class DataExplorerPageBase : BaseComponent
     private string? _lastSearchTerm;
     private CancellationTokenSource? _sessionStatusMonitoringCts;
     private Task? _sessionStatusMonitoringTask;
+    private const string InstagramLoginUrl = "https://www.instagram.com/accounts/login/";
 
     protected override async Task OnInitializedAsync()
     {
@@ -429,6 +431,36 @@ public class DataExplorerPageBase : BaseComponent
         ClearLoginSessionForm();
     }
 
+    protected async Task OpenInstagramLoginAsync()
+    {
+        await JSRuntime.InvokeVoidAsync("dataExplorer.openExternalUrl", InstagramLoginUrl);
+    }
+
+    protected void ParseSessionCookieHeader()
+    {
+        var parsed = ParseCookieHeader(NewSessionCookieHeader);
+
+        if (parsed.Count == 0)
+        {
+            MessageService.Warning("Paste a valid Instagram Cookie header first.");
+            return;
+        }
+
+        if (parsed.TryGetValue("sessionid", out var sessionId) && !string.IsNullOrWhiteSpace(sessionId))
+            NewSessionSessionId = sessionId;
+
+        if (parsed.TryGetValue("csrftoken", out var csrfToken) && !string.IsNullOrWhiteSpace(csrfToken))
+            NewSessionCsrfToken = csrfToken;
+
+        if (parsed.TryGetValue("ds_user_id", out var dsUserId) && !string.IsNullOrWhiteSpace(dsUserId))
+            NewSessionDsUserId = dsUserId;
+
+        if (parsed.TryGetValue("username", out var username) && !string.IsNullOrWhiteSpace(username))
+            NewSessionUsername = username;
+
+        MessageService.Success("Parsed Instagram cookies into the session form.");
+    }
+
     protected void CancelTwoFactorLogin()
     {
         ShowTwoFactorLoginForm = false;
@@ -438,14 +470,28 @@ public class DataExplorerPageBase : BaseComponent
     protected async Task CreateSessionAsync()
     {
         var username = NewSessionUsername.Trim();
-        var sessionId = NewSessionSessionId.Trim();
-        var csrfToken = NewSessionCsrfToken.Trim();
-        var dsUserId = NewSessionDsUserId.Trim();
+        var rawCookieHeader = NewSessionCookieHeader.Trim();
+        var parsedCookies = ParseCookieHeader(rawCookieHeader);
+
+        if (parsedCookies.TryGetValue("username", out var parsedUsername) && string.IsNullOrWhiteSpace(username))
+            username = parsedUsername.Trim();
+
+        var sessionId = !string.IsNullOrWhiteSpace(NewSessionSessionId)
+            ? NewSessionSessionId.Trim()
+            : GetParsedCookieValue(parsedCookies, "sessionid") ?? string.Empty;
+
+        var csrfToken = !string.IsNullOrWhiteSpace(NewSessionCsrfToken)
+            ? NewSessionCsrfToken.Trim()
+            : GetParsedCookieValue(parsedCookies, "csrftoken");
+
+        var dsUserId = !string.IsNullOrWhiteSpace(NewSessionDsUserId)
+            ? NewSessionDsUserId.Trim()
+            : GetParsedCookieValue(parsedCookies, "ds_user_id");
         var cookieHeader = BuildCookieHeader(sessionId, csrfToken, dsUserId);
 
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(sessionId))
         {
-            MessageService.Warning("Username and session ID are required to create a session.");
+            MessageService.Warning("Username and session ID are required to create a session. You can paste a raw Cookie header to auto-fill them.");
             return;
         }
 
@@ -508,6 +554,7 @@ public class DataExplorerPageBase : BaseComponent
         NewSessionCsrfToken = string.Empty;
         NewSessionDsUserId = string.Empty;
         NewSessionAccessToken = string.Empty;
+        NewSessionCookieHeader = string.Empty;
     }
 
     private void ClearLoginSessionForm()
@@ -541,6 +588,34 @@ public class DataExplorerPageBase : BaseComponent
     {
         if (!string.IsNullOrWhiteSpace(value))
             parts.Add($"{name}={value.Trim()}");
+    }
+
+    private static Dictionary<string, string> ParseCookieHeader(string? cookieHeader)
+    {
+        var cookies = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        if (string.IsNullOrWhiteSpace(cookieHeader))
+            return cookies;
+
+        foreach (var part in cookieHeader.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var separatorIndex = part.IndexOf('=');
+            if (separatorIndex <= 0)
+                continue;
+
+            var name = part[..separatorIndex].Trim();
+            var value = part[(separatorIndex + 1)..].Trim();
+
+            if (!string.IsNullOrWhiteSpace(name) && !cookies.ContainsKey(name))
+                cookies[name] = value;
+        }
+
+        return cookies;
+    }
+
+    private static string? GetParsedCookieValue(IReadOnlyDictionary<string, string> cookies, string cookieName)
+    {
+        return cookies.TryGetValue(cookieName, out var value) ? value : null;
     }
 
     protected string SelectedSessionDisplayName =>
