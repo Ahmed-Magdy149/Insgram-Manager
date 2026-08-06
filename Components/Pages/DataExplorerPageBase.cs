@@ -11,6 +11,7 @@ using AntDesign;
 using Microsoft.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.JSInterop;
+using Microsoft.AspNetCore.SignalR.Client;
 
 namespace Insgram_Manager.Components.Pages;
 
@@ -75,13 +76,52 @@ public class DataExplorerPageBase : AuthGuardComponentBase
     private CancellationTokenSource? _sessionStatusMonitoringCts;
     private Task? _sessionStatusMonitoringTask;
     private CancellationTokenSource? _deleteCts;
+    private HubConnection? _hubConnection;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadGlobalSessionStatusAsync();
         await LoadDataAsync();
+        await SetupSignalRConnectionAsync();
         StartSessionStatusMonitoring();
         await TryRestorePendingActionAsync();
+    }
+
+    private async Task SetupSignalRConnectionAsync()
+    {
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(NavigationManager.ToAbsoluteUri("/hubs/notifications"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hubConnection.On<object>("PendingRequestCompleted", async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadDataAsync();
+                await LoadGlobalSessionStatusAsync();
+                StateHasChanged();
+            });
+        });
+
+        _hubConnection.On<object>("InstagramCommunicationChanged", async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadGlobalSessionStatusAsync();
+                await LoadDataAsync();
+                StateHasChanged();
+            });
+        });
+
+        try
+        {
+            await _hubConnection.StartAsync();
+        }
+        catch (Exception ex)
+        {
+            LogService.LogWarning("Failed to connect to SignalR hub for data explorer: {Message}", ex.Message);
+        }
     }
 
     private async Task TryRestorePendingActionAsync()
@@ -244,6 +284,14 @@ public class DataExplorerPageBase : AuthGuardComponentBase
             _sessionStatusMonitoringCts?.Dispose();
             _deleteCts?.Cancel();
             _deleteCts?.Dispose();
+            if (_hubConnection is not null)
+            {
+                try
+                {
+                    _hubConnection.DisposeAsync().AsTask().Wait();
+                }
+                catch { }
+            }
         }
 
         base.Dispose(disposing);

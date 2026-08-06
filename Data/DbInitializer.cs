@@ -70,6 +70,12 @@ public static class DbInitializer
             await ExecuteNonQueryAsync(connection, "CREATE TABLE IF NOT EXISTS \"InstagramSessions\" (\"Id\" INTEGER NOT NULL CONSTRAINT \"PK_InstagramSessions\" PRIMARY KEY AUTOINCREMENT, \"CreatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"UpdatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"AccountKey\" TEXT NOT NULL, \"Username\" TEXT NOT NULL, \"ProtectedAccessToken\" TEXT NULL, \"ProtectedCookieHeader\" TEXT NULL, \"ProtectedCsrfToken\" TEXT NULL, \"Notes\" TEXT NULL);");
             await ExecuteNonQueryAsync(connection, "CREATE UNIQUE INDEX IF NOT EXISTS \"IX_InstagramSessions_AccountKey\" ON \"InstagramSessions\" (\"AccountKey\");");
 
+            // Add commonly added columns to InstagramSessions for backwards compatibility
+            await TryAddColumnAsync(connection, "InstagramSessions", "IsAuthenticated", "INTEGER NOT NULL DEFAULT 0");
+            await TryAddColumnAsync(connection, "InstagramSessions", "LastAuthenticatedAt", "TEXT NULL");
+            await TryAddColumnAsync(connection, "InstagramSessions", "LastRefreshedAt", "TEXT NULL");
+            await TryAddColumnAsync(connection, "InstagramSessions", "ExpiresAt", "TEXT NULL");
+
             await ExecuteNonQueryAsync(connection, "CREATE TABLE IF NOT EXISTS \"InstagramInteractions\" (\"Id\" INTEGER NOT NULL CONSTRAINT \"PK_InstagramInteractions\" PRIMARY KEY AUTOINCREMENT, \"CreatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"UpdatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"AccountKey\" TEXT NOT NULL, \"Action\" TEXT NOT NULL, \"Method\" TEXT NOT NULL, \"Endpoint\" TEXT NOT NULL, \"Summary\" TEXT NULL, \"Error\" TEXT NULL, \"RequestBody\" TEXT NULL, \"ResponseBody\" TEXT NULL);");
             await ExecuteNonQueryAsync(connection, "CREATE INDEX IF NOT EXISTS \"IX_InstagramInteractions_AccountKey\" ON \"InstagramInteractions\" (\"AccountKey\");");
             await ExecuteNonQueryAsync(connection, "CREATE INDEX IF NOT EXISTS \"IX_InstagramInteractions_CreatedAt\" ON \"InstagramInteractions\" (\"CreatedAt\");");
