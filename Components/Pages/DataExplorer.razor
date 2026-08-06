@@ -17,16 +17,6 @@
                        AllowClear />
             </div>
             <div class="data-explorer-actions">
-                <Button Type="@ButtonType.Primary"
-                        Icon="plus"
-                        OnClick="ToggleCreateSessionForm">
-                    Create Session
-                </Button>
-                <Button Type="@ButtonType.Default"
-                        Icon="login"
-                        OnClick="ToggleLoginSessionForm">
-                    Login Session
-                </Button>
                 <Button Type="@ButtonType.Default"
                         Danger="true"
                         Icon="delete"
@@ -35,6 +25,16 @@
                         Loading="IsDeletingSelectedRows"
                         AutoLoading="true"
                         OnClick="DeleteSelectedAsync" />
+                <Button Type="@ButtonType.Default"
+                        Danger="true"
+                        Icon="delete"
+                        AriaLabel="Cancel all pending requests on Instagram"
+                        Disabled="@(!IsInstagramSideActionSupported || IsDeletingAllRows)"
+                        Loading="IsDeletingAllRows"
+                        AutoLoading="true"
+                        OnClick="DeleteAllAsync">
+                    Delete All
+                </Button>
                 <Button Type="@ButtonType.Default" Icon="download" OnClick="ExportCsvAsync">CSV Export</Button>
                 <Popover Title="Columns" Trigger="@(new[] { AntDesign.Trigger.Click })" Placement="AntDesign.Placement.BottomRight">
                     <ContentTemplate>
@@ -56,10 +56,16 @@
         <div class="data-explorer-session-status">
             <div class="data-explorer-session-status-text">
                 <span class="data-explorer-session-status-label">Session</span>
-                <strong>@SelectedSessionDisplayName</strong>
+                <strong>@(GlobalSessionUsername ?? "Not Connected")</strong>
+                @if (GlobalSessionIsConnected && GlobalSessionLastValidation is not null)
+                {
+                    <span class="data-explorer-session-status-sub">
+                        Last validated: @GlobalSessionLastValidation.Value.ToString("yyyy-MM-dd HH:mm")
+                    </span>
+                }
             </div>
 
-            <Tag Color="@SelectedSessionStatusColor" Class="data-explorer-session-status-tag">
+            <Tag Color="@(GlobalSessionIsConnected ? "green" : "red")" Class="data-explorer-session-status-tag">
                 @if (IsRefreshingSessionStatus)
                 {
                     <Icon Type="sync" Spin="true" />
@@ -67,294 +73,46 @@
                 }
                 else
                 {
-                    <Icon Type="@SelectedSessionStatusIcon" />
-                    <span>@SelectedSessionStatusText</span>
+                    <Icon Type="@(GlobalSessionIsConnected ? "check-circle" : "close-circle")" />
+                    <span>@(GlobalSessionIsConnected ? "Connected" : "Not Connected")</span>
                 }
             </Tag>
         </div>
 
-        @if (ShowCreateSessionForm)
+        @if (IsDeleteInProgress)
         {
-            <Card Class="data-explorer-session-card" Title="Create Instagram Session">
-                <div class="data-explorer-session-intro">
-                    <strong>Log in to Instagram in the browser, then paste the cookie header here.</strong>
-                    <span>You can still fill the fields manually, but the raw Cookie header will auto-parse `sessionid`, `csrftoken`, and `ds_user_id` for you.</span>
-                </div>
-
-                <div class="data-explorer-session-form">
-                    <div class="data-explorer-session-actions">
-                        <Button Type="@ButtonType.Primary"
-                                Icon="global"
-                                OnClick="OpenInstagramLoginAsync">
-                            Open Instagram Login
-                        </Button>
+            <Card Class="data-explorer-delete-progress-card">
+                <div class="data-explorer-delete-progress">
+                    <div class="data-explorer-delete-progress-header">
+                        <strong>Deleting...</strong>
+                        <span class="data-explorer-delete-progress-count">
+                            @DeleteProgress.Processed / @DeleteProgress.Total
+                        </span>
                     </div>
-
-                    <div class="data-explorer-session-group">
-                        <div class="data-explorer-session-group-title">Quick Import</div>
-
-                        <div class="data-explorer-session-field">
-                            <label for="new-session-cookie-header">Raw Cookie Header</label>
-                            <textarea id="new-session-cookie-header"
-                                      class="data-explorer-session-textarea"
-                                      rows="4"
-                                      @bind="NewSessionCookieHeader"
-                                      placeholder="Paste the Cookie header from the Instagram browser session here"></textarea>
-                            <div class="data-explorer-session-help">
-                                Paste the full `Cookie` header from the browser network/devtools view or a cookie-export extension.
-                            </div>
-                        </div>
-
-                        <div class="data-explorer-session-actions">
-                            <Button Type="@ButtonType.Default"
-                                    Icon="experiment"
-                                    OnClick="ParseSessionCookieHeader">
-                                Parse Cookies
-                            </Button>
-                        </div>
+                    <Progress Percent="@DeleteProgress.Percentage"
+                              Status="@(DeleteProgress.Failed > 0 ? ProgressStatus.Exception : ProgressStatus.Active)" />
+                    <div class="data-explorer-delete-progress-current">
+                        Current Account: <strong>@DeleteProgress.CurrentUsername</strong>
                     </div>
-
-                    <div class="data-explorer-session-group">
-                        <div class="data-explorer-session-group-title">Required</div>
-
-                        <div class="data-explorer-session-field">
-                            <label for="new-session-username">Username</label>
-                            <Input id="new-session-username"
-                                   @bind-Value="NewSessionUsername"
-                                   Placeholder="Instagram username" />
-                            <div class="data-explorer-session-help">Use the account username exactly as it appears on Instagram.</div>
-                        </div>
-
-                        <div class="data-explorer-session-field">
-                            <label for="new-session-session-id">Session ID</label>
-                            <Input id="new-session-session-id"
-                                   @bind-Value="NewSessionSessionId"
-                                   Placeholder="sessionid value" />
-                            <div class="data-explorer-session-help">Copy the value of the `sessionid` cookie from the logged-in browser.</div>
-                        </div>
+                    <div class="data-explorer-delete-progress-stats">
+                        <Tag Color="@("green")">Deleted: @DeleteProgress.Succeeded</Tag>
+                        @if (DeleteProgress.Skipped > 0)
+                        {
+                            <Tag Color="@("orange")">Skipped: @DeleteProgress.Skipped</Tag>
+                        }
+                        @if (DeleteProgress.Failed > 0)
+                        {
+                            <Tag Color="@("red")">Failed: @DeleteProgress.Failed</Tag>
+                        }
                     </div>
-
-                    <div class="data-explorer-session-group">
-                        <div class="data-explorer-session-group-title">Optional</div>
-
-                        <div class="data-explorer-session-field">
-                            <label for="new-session-csrf">CSRF Token</label>
-                            <Input id="new-session-csrf"
-                                   @bind-Value="NewSessionCsrfToken"
-                                   Placeholder="Optional CSRF token" />
-                            <div class="data-explorer-session-help">Usually the `csrftoken` cookie value.</div>
-                        </div>
-
-                        <div class="data-explorer-session-field">
-                            <label for="new-session-ds-user-id">DS User ID</label>
-                            <Input id="new-session-ds-user-id"
-                                   @bind-Value="NewSessionDsUserId"
-                                   Placeholder="Required ds_user_id value" />
-                            <div class="data-explorer-session-help">Required for the live verification check against Instagram.</div>
-                        </div>
-
-                        <div class="data-explorer-session-field">
-                            <label for="new-session-access-token">Access Token</label>
-                            <Input id="new-session-access-token"
-                                   @bind-Value="NewSessionAccessToken"
-                                   Placeholder="Optional access token" />
-                            <div class="data-explorer-session-help">Leave empty if you do not have a token value.</div>
-                        </div>
-                    </div>
-
-                    <div class="data-explorer-session-actions">
-                        <Button Type="@ButtonType.Primary"
-                                Icon="save"
-                                Loading="IsCreatingSession"
-                                AutoLoading="true"
-                                OnClick="CreateSessionAsync">
-                            Save Session
-                        </Button>
+                    <div class="data-explorer-delete-progress-actions">
                         <Button Type="@ButtonType.Default"
-                                Icon="close"
-                                Disabled="IsCreatingSession"
-                                OnClick="CancelCreateSession">
+                                Danger="true"
+                                Icon="stop"
+                                OnClick="CancelDeleteProgress">
                             Cancel
                         </Button>
                     </div>
-                </div>
-            </Card>
-        }
-
-        @if (ShowLoginSessionForm)
-        {
-            <Card Class="data-explorer-session-card" Title="Sign In to Instagram">
-                <div class="data-explorer-session-intro">
-                    <strong>Use your Instagram username and password.</strong>
-                    <span>The password is only used for sign-in and is not stored.</span>
-                </div>
-
-                <div class="data-explorer-session-form">
-                    <div class="data-explorer-session-group">
-                        <div class="data-explorer-session-group-title">Credentials</div>
-
-                        <div class="data-explorer-session-field">
-                            <label for="login-session-username">Username</label>
-                            <Input id="login-session-username"
-                                   @bind-Value="NewLoginUsername"
-                                   Placeholder="Instagram username" />
-                        </div>
-
-                        <div class="data-explorer-session-field">
-                            <label for="login-session-password">Password</label>
-                            <input id="login-session-password"
-                                   type="password"
-                                   class="ant-input"
-                                   @bind="NewLoginPassword"
-                                   placeholder="Instagram password" />
-                        </div>
-                    </div>
-
-                    <div class="data-explorer-session-actions">
-                        <Button Type="@ButtonType.Primary"
-                                Icon="login"
-                                Loading="IsLoggingInSession"
-                                AutoLoading="true"
-                                OnClick="LoginSessionAsync">
-                            Sign In
-                        </Button>
-                        <Button Type="@ButtonType.Default"
-                                Icon="close"
-                                Disabled="IsLoggingInSession"
-                                OnClick="CancelLoginSession">
-                            Cancel
-                        </Button>
-                    </div>
-                </div>
-            </Card>
-        }
-
-        @if (ShowTwoFactorLoginForm)
-        {
-            <Card Class="data-explorer-session-card" Title="Verify Instagram Two-Factor Code">
-                <div class="data-explorer-session-intro">
-                    <strong>Instagram requires a verification code for @PendingTwoFactorUsername.</strong>
-                    @if (!string.IsNullOrWhiteSpace(PendingTwoFactorChallengeMessage))
-                    {
-                        <span class="data-explorer-session-help">@PendingTwoFactorChallengeMessage</span>
-                    }
-                    <span class="data-explorer-session-help">Current method: @CurrentTwoFactorMethodDisplayName.</span>
-                    <span class="data-explorer-session-help">Enter the code Instagram sent by the selected method. If it does not arrive, switch to another available method below.</span>
-                </div>
-
-                <div class="data-explorer-session-form">
-                    @if (PendingTwoFactorAvailableMethods.Count > 0)
-                    {
-                        <div class="data-explorer-session-group">
-                            <div class="data-explorer-session-group-title">Verification Method</div>
-
-                            <div class="data-explorer-session-actions">
-                                @if (IsTwoFactorMethodAvailable("sms"))
-                                {
-                                    <Button Type="@(IsTwoFactorMethodSelected("1") ? ButtonType.Primary : ButtonType.Default)"
-                                            Disabled="IsVerifyingTwoFactorCode || IsResendingTwoFactorCode"
-                                            OnClick="SelectSmsVerificationMethod">
-                                        SMS
-                                    </Button>
-                                }
-
-                                @if (IsTwoFactorMethodAvailable("totp"))
-                                {
-                                    <Button Type="@(IsTwoFactorMethodSelected("3") ? ButtonType.Primary : ButtonType.Default)"
-                                            Disabled="IsVerifyingTwoFactorCode || IsResendingTwoFactorCode"
-                                            OnClick="SelectAuthenticatorVerificationMethod">
-                                        Authenticator App
-                                    </Button>
-                                }
-
-                                @if (IsTwoFactorMethodAvailable("whatsapp"))
-                                {
-                                    <Button Type="@(IsTwoFactorMethodSelected("1") ? ButtonType.Primary : ButtonType.Default)"
-                                            Disabled="IsVerifyingTwoFactorCode || IsResendingTwoFactorCode"
-                                            OnClick="SelectWhatsappVerificationMethod">
-                                        WhatsApp
-                                    </Button>
-                                }
-                            </div>
-                        </div>
-                    }
-
-                    <div class="data-explorer-session-group">
-                        <div class="data-explorer-session-group-title">Verification</div>
-
-                        <div class="data-explorer-session-field">
-                            <label for="two-factor-code">Verification Code</label>
-                            <Input id="two-factor-code"
-                                   @bind-Value="NewTwoFactorCode"
-                                   Placeholder="6-digit code" />
-                            <div class="data-explorer-session-help data-explorer-session-resend-hint">
-                                <span>Didn't get a security code?</span>
-                                <button type="button"
-                                        class="data-explorer-session-resend-link"
-                                        disabled="@(!CanResendTwoFactorCode)"
-                                        @onclick="ResendTwoFactorCodeAsync">
-                                    We can resend it.
-                                </button>
-                                @if (HasAlternateTwoFactorMethod)
-                                {
-                                    <button type="button"
-                                            class="data-explorer-session-resend-link"
-                                            disabled="@(IsVerifyingTwoFactorCode || IsResendingTwoFactorCode)"
-                                            @onclick="UseAlternateTwoFactorMethod">
-                                        Use another method.
-                                    </button>
-                                }
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="data-explorer-session-actions">
-                        <Button Type="@ButtonType.Primary"
-                                Icon="check"
-                                Loading="IsVerifyingTwoFactorCode"
-                                AutoLoading="true"
-                                OnClick="VerifyTwoFactorLoginAsync">
-                            Verify Code
-                        </Button>
-                        <Button Type="@ButtonType.Default"
-                                Icon="close"
-                                Disabled="IsVerifyingTwoFactorCode || IsResendingTwoFactorCode"
-                                OnClick="CancelTwoFactorLogin">
-                            Cancel
-                        </Button>
-                    </div>
-                </div>
-            </Card>
-        }
-
-        @if (ShowInstagramChallengeNotice)
-        {
-            <Card Class="data-explorer-session-card" Title="Instagram Manual Verification Required">
-                <div class="data-explorer-session-intro">
-                    <strong>Instagram did not send an SMS code for this request.</strong>
-                    @if (!string.IsNullOrWhiteSpace(InstagramChallengeMessage))
-                    {
-                        <span class="data-explorer-session-help">@InstagramChallengeMessage</span>
-                    }
-                    <span class="data-explorer-session-help">Open Instagram in the official app or web flow, confirm the login there, then return here and try again.</span>
-                </div>
-
-                <div class="data-explorer-session-actions">
-                    @if (!string.IsNullOrWhiteSpace(InstagramChallengeUrl))
-                    {
-                        <a class="ant-btn ant-btn-primary"
-                           href="@InstagramChallengeUrl"
-                           target="_blank"
-                           rel="noopener noreferrer">
-                            Open Instagram Challenge
-                        </a>
-                    }
-
-                    <Button Type="@ButtonType.Default"
-                            Icon="close"
-                            OnClick="DismissInstagramChallengeNotice">
-                        Dismiss
-                    </Button>
                 </div>
             </Card>
         }
@@ -396,7 +154,6 @@
                             Ghost="true"
                             Icon="close-circle"
                             AriaLabel="Cancel this request on Instagram"
-                            Disabled="@(string.IsNullOrWhiteSpace(SelectedAccountKey))"
                             Loading="@(DeletingRowId == context.Id)"
                             AutoLoading="true"
                             OnClick="@(() => DeleteRowAsync(context))" />

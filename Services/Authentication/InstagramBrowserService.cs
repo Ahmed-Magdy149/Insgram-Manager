@@ -235,7 +235,7 @@ public sealed class InstagramBrowserService : IInstagramBrowserService, IAsyncDi
                     !currentUrl.Contains("/login.php", StringComparison.OrdinalIgnoreCase) &&
                     !currentUrl.Contains("/two_step", StringComparison.OrdinalIgnoreCase))
                 {
-                    _logger.LogInformation("User appears to have completed Facebook login — navigating to Instagram to verify", username);
+                    _logger.LogInformation("User appears to have completed Facebook login — navigating to Instagram to verify for {Username}", username);
                     try
                     {
                         await page.GotoAsync(_options.BaseUrl, new PageGotoOptions

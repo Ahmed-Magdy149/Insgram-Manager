@@ -1,6 +1,7 @@
 using Insgram_Manager.Communication.Models;
 using Insgram_Manager.Components.Shared;
 using Insgram_Manager.Interfaces;
+using Insgram_Manager.Interfaces.Authentication;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.SignalR.Client;
 
@@ -12,13 +13,16 @@ namespace Insgram_Manager.Components.Pages;
 /// batch cancellation with progress, retry of failed cancellations,
 /// and real-time updates via SignalR.
 /// </summary>
-public class PendingRequestsPageBase : BaseComponent, IAsyncDisposable
+public class PendingRequestsPageBase : AuthGuardComponentBase, IAsyncDisposable
 {
     [Inject]
     private IPendingRequestService PendingRequestService { get; set; } = default!;
 
     [Inject]
     private IInstagramSessionService SessionService { get; set; } = default!;
+
+    [Inject]
+    private IInstagramDeleteService DeleteService { get; set; } = default!;
 
     protected IReadOnlyList<PendingRequestItem> PendingRequests { get; set; } = [];
     protected IReadOnlyList<InstagramSessionState> Sessions { get; set; } = [];
@@ -41,6 +45,36 @@ public class PendingRequestsPageBase : BaseComponent, IAsyncDisposable
     {
         await LoadAsync();
         await SetupSignalRConnectionAsync();
+        await TryRestorePendingActionAsync();
+    }
+
+    private async Task TryRestorePendingActionAsync()
+    {
+        var action = TryRestorePendingAction();
+        if (action is null)
+            return;
+
+        LogService.LogInformation("Restoring pending action {ActionName} on Pending Requests", action.ActionName);
+
+        if (action.SelectedUsernames.Count > 0)
+        {
+            SelectedUsernames = action.SelectedUsernames.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+
+        StateHasChanged();
+
+        if (action.ActionName == "CancelSelected" && SelectedUsernames.Count > 0)
+        {
+            await CancelSelectedAsync();
+        }
+        else if (action.ActionName == "CancelAll")
+        {
+            await CancelAllAsync();
+        }
+        else if (action.ActionName == "CancelSingle" && action.SelectedUsernames.Count > 0)
+        {
+            await CancelSingleAsync(action.SelectedUsernames.First());
+        }
     }
 
     protected async Task LoadAsync()
@@ -102,33 +136,36 @@ public class PendingRequestsPageBase : BaseComponent, IAsyncDisposable
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(SelectedAccountKey))
-        {
-            MessageService.Warning("Please select an authenticated Instagram session first.");
+        var canProceed = await RequireInstagramLoginAsync(
+            "CancelSelected",
+            null,
+            SelectedUsernames.ToList());
+
+        if (!canProceed)
             return;
-        }
 
         await ProcessCancellationAsync(SelectedUsernames.ToList());
     }
 
     protected async Task CancelSingleAsync(string username)
     {
-        if (string.IsNullOrWhiteSpace(SelectedAccountKey))
-        {
-            MessageService.Warning("Please select an authenticated Instagram session first.");
+        var canProceed = await RequireInstagramLoginAsync(
+            "CancelSingle",
+            null,
+            [username]);
+
+        if (!canProceed)
             return;
-        }
 
         IsProcessing = true;
         try
         {
-            var result = await PendingRequestService.CancelAsync(username, SelectedAccountKey);
-            LastResults = [result];
+            var result = await DeleteService.DeleteSingleAsync(username);
 
-            if (result.Success)
+            if (result.Status == DeleteItemStatus.Deleted)
                 await NotifySuccessAsync($"Successfully cancelled pending request for {username}.");
             else
-                await HandleErrorAsync($"Failed to cancel request for {username}: {result.Error}");
+                await HandleErrorAsync($"Failed to cancel request for {username}: {result.Error ?? result.Status.ToString()}");
 
             await LoadAsync();
         }
@@ -151,11 +188,13 @@ public class PendingRequestsPageBase : BaseComponent, IAsyncDisposable
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(SelectedAccountKey))
-        {
-            MessageService.Warning("Please select an authenticated Instagram session first.");
+        var canProceed = await RequireInstagramLoginAsync(
+            "CancelAll",
+            null,
+            PendingRequests.Select(p => p.Username).ToList());
+
+        if (!canProceed)
             return;
-        }
 
         await ProcessCancellationAsync(PendingRequests.Select(p => p.Username).ToList());
     }
@@ -181,6 +220,13 @@ public class PendingRequestsPageBase : BaseComponent, IAsyncDisposable
 
         try
         {
+            var accountKey = await AppSession.GetCurrentAccountKeyAsync(_cts.Token);
+            if (accountKey is null)
+            {
+                await HandleErrorAsync("No active Instagram session.");
+                return;
+            }
+
             var progress = new Progress<PendingRequestBatchProgress>(p =>
             {
                 CurrentProgress = p;
@@ -188,8 +234,8 @@ public class PendingRequestsPageBase : BaseComponent, IAsyncDisposable
             });
 
             var results = isRetry
-                ? await PendingRequestService.RetryFailedAsync(LastResults, SelectedAccountKey, progress, _cts.Token)
-                : await PendingRequestService.CancelBatchAsync(usernames, SelectedAccountKey, progress, _cts.Token);
+                ? await PendingRequestService.RetryFailedAsync(LastResults, accountKey, progress, _cts.Token)
+                : await PendingRequestService.CancelBatchAsync(usernames, accountKey, progress, _cts.Token);
 
             LastResults = results.ToList();
 

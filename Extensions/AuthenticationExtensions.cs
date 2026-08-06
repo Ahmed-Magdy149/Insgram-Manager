@@ -8,7 +8,8 @@ namespace Insgram_Manager.Extensions;
 
 /// <summary>
 /// Registers Playwright-based Instagram authentication services.
-/// Includes browser profile management, browser automation, and login orchestration.
+/// Includes browser profile management, browser automation, login orchestration,
+/// centralized session management, pending action tracking, and delete operations.
 /// </summary>
 public static class AuthenticationExtensions
 {
@@ -19,6 +20,10 @@ public static class AuthenticationExtensions
         services.AddSingleton<IBrowserProfileService, BrowserProfileService>();
         services.AddSingleton<IInstagramBrowserService, InstagramBrowserService>();
         services.AddScoped<IInstagramLoginService, InstagramLoginService>();
+
+        services.AddScoped<IApplicationSessionService, ApplicationSessionService>();
+        services.AddScoped<IPendingActionService, PendingActionService>();
+        services.AddScoped<IInstagramDeleteService, InstagramDeleteService>();
 
         return services;
     }

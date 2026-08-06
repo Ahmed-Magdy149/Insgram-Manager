@@ -1,3 +1,4 @@
+using Insgram_Manager.Components.Shared;
 using Insgram_Manager.Interfaces.Authentication;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging;
@@ -7,9 +8,9 @@ namespace Insgram_Manager.Components.Pages;
 /// <summary>
 /// Code-behind for the Instagram Login page.
 /// Manages login form state, login execution, session validation, and profile display.
-/// All business logic is delegated to <see cref="IInstagramLoginService"/>.
+/// After successful login, restores any pending action and navigates back automatically.
 /// </summary>
-public class LoginPageBase : ComponentBase
+public class LoginPageBase : AuthGuardComponentBase
 {
     [Inject]
     private IInstagramLoginService LoginService { get; set; } = null!;
@@ -58,6 +59,18 @@ public class LoginPageBase : ComponentBase
                 SuccessMessage = $"Successfully logged in as {result.Username}.";
                 Password = string.Empty;
                 await LoadSessionsAsync();
+
+                if (PendingActionService.HasPending())
+                {
+                    var action = PendingActionService.Dequeue();
+                    if (action is not null && !string.IsNullOrWhiteSpace(action.ReturnUrl))
+                    {
+                        Logger.LogInformation("Restoring pending action {ActionName} to {ReturnUrl}",
+                            action.ActionName, action.ReturnUrl);
+                        NavigationManager.NavigateTo(action.ReturnUrl);
+                        return;
+                    }
+                }
             }
             else
             {
