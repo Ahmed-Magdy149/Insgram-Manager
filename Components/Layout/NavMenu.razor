@@ -6,6 +6,11 @@
         <span>Dashboard</span>
     </NavLink>
 
+    <NavLink href="login" class="app-nav-item" Match="NavLinkMatch.Prefix" @onclick="HandleNavigate">
+        <Icon Type="login" />
+        <span>Login</span>
+    </NavLink>
+
     <NavLink href="import" class="app-nav-item" Match="NavLinkMatch.Prefix" @onclick="HandleNavigate">
         <Icon Type="download" />
         <span>Import</span>

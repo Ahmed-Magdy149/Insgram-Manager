@@ -40,6 +40,9 @@ builder.Services.AddImport();
 // --- Communication Module (Phase 6 — Instagram Communication Engine) ---
 builder.Services.AddCommunication();
 
+// --- Authentication Module (Playwright-based Instagram Browser Authentication) ---
+builder.Services.AddAuthentication(builder.Configuration);
+
 // --- Background Worker (Phase 5 — Automation Engine) ---
 builder.Services.AddHostedService<Insgram_Manager.BackgroundJobs.BackgroundJobWorker>();
 

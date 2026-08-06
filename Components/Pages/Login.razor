@@ -1,0 +1,178 @@
+@page "/login"
+@layout MainLayout
+@inherits LoginPageBase
+
+<PageTitle>Login &middot; Insgram Manager</PageTitle>
+
+<div class="login-page">
+    <div class="login-page-header">
+        <h1>Instagram Login</h1>
+        <p class="login-page-subtitle">
+            Log in to Instagram using a real Chromium browser powered by Playwright.
+            2FA, challenges, and checkpoints are handled in the browser window.
+        </p>
+    </div>
+
+    @if (ErrorMessage is not null)
+    {
+        <Alert Type="@AlertType.Error"
+               Message="Login Error"
+               Description="@ErrorMessage"
+               ShowIcon="true"
+               Class="login-page-alert" />
+    }
+
+    @if (SuccessMessage is not null)
+    {
+        <Alert Type="@AlertType.Success"
+               Message="Success"
+               Description="@SuccessMessage"
+               ShowIcon="true"
+               Class="login-page-alert" />
+    }
+
+    @if (ActiveSession is not null)
+    {
+        <div class="login-page-active-session">
+            <div class="login-page-active-session-header">
+                <h2>Active Session</h2>
+                <Tag Color="@GetSessionStatusColor(ActiveSession.IsLoggedIn)">
+                    @GetSessionStatusText(ActiveSession.IsLoggedIn)
+                </Tag>
+            </div>
+
+            <div class="login-page-profile">
+                @if (!string.IsNullOrWhiteSpace(ActiveSession.ProfilePictureUrl))
+                {
+                    <img src="@ActiveSession.ProfilePictureUrl"
+                         alt="@ActiveSession.Username"
+                         class="login-page-profile-avatar" />
+                }
+                else
+                {
+                    <div class="login-page-profile-avatar login-page-profile-avatar--placeholder">
+                        <Icon Type="user" />
+                    </div>
+                }
+
+                <div class="login-page-profile-info">
+                    <div class="login-page-profile-username">@ActiveSession.Username</div>
+                    @if (!string.IsNullOrWhiteSpace(ActiveSession.DisplayName))
+                    {
+                        <div class="login-page-profile-displayname">@ActiveSession.DisplayName</div>
+                    }
+                    <div class="login-page-profile-meta">
+                        <span><strong>Session Created:</strong> @FormatDate(ActiveSession.CreatedAt)</span>
+                        <span><strong>Last Login:</strong> @FormatDate(ActiveSession.LastLoginAt)</span>
+                        <span><strong>Last Validated:</strong> @FormatDate(ActiveSession.LastValidatedAt)</span>
+                        <span><strong>Remember Session:</strong> @(ActiveSession.RememberSession ? "Yes" : "No")</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="login-page-active-session-actions">
+                <Button Type="@ButtonType.Default"
+                        Icon="reload"
+                        Loading="IsValidating"
+                        OnClick="() => HandleValidateSessionAsync(ActiveSession.AccountKey)">
+                    Validate Session
+                </Button>
+                <Button Type="@ButtonType.Primary"
+                        Danger="true"
+                        Icon="logout"
+                        Loading="IsLoggingOut"
+                        OnClick="() => HandleLogoutAsync(ActiveSession.AccountKey)">
+                    Logout
+                </Button>
+            </div>
+        </div>
+    }
+
+    <div class="login-page-form-section">
+        <h2>@(ActiveSession is not null ? "Log In With Another Account" : "Log In To Instagram")</h2>
+
+        <div class="login-page-form">
+            <div class="login-page-field">
+                <label for="login-username">Username</label>
+                <Input id="login-username"
+                       @bind-Value="Username"
+                       Placeholder="Enter Instagram username"
+                       AllowClear="true" />
+            </div>
+
+            <div class="login-page-field">
+                <label for="login-password">Password</label>
+                <InputPassword id="login-password"
+                                @bind-Value="Password"
+                                Placeholder="Enter Instagram password" />
+            </div>
+
+            <div class="login-page-field login-page-field--checkbox">
+                <Checkbox @bind-Checked="RememberSession">
+                    Remember Session (persist across restarts)
+                </Checkbox>
+            </div>
+
+            <div class="login-page-form-actions">
+                <Button Type="@ButtonType.Primary"
+                        Icon="login"
+                        Size="@ButtonSize.Large"
+                        Loading="IsLoggingIn"
+                        OnClick="HandleLoginAsync">
+                    Log In
+                </Button>
+            </div>
+
+            <div class="login-page-form-help">
+                <Icon Type="info-circle" />
+                <span>
+                    A Chromium browser window will open for authentication.
+                    If 2FA or challenge is required, complete it in the browser window.
+                    Passwords are never stored.
+                </span>
+            </div>
+        </div>
+    </div>
+
+    @if (Sessions.Count > 0)
+    {
+        <div class="login-page-sessions">
+            <h2>All Sessions</h2>
+            <Table DataSource="Sessions"
+                   TItem="InstagramAuthSessionDto"
+                   RowKey="r => r.AccountKey">
+                <PropertyColumn Property="r => r.Username" Title="Username" />
+                <PropertyColumn Property="r => r.DisplayName" Title="Display Name" />
+                <PropertyColumn Property="r => r.IsLoggedIn" Title="Status">
+                    <Tag Color="@GetSessionStatusColor(context.IsLoggedIn)">
+                        @GetSessionStatusText(context.IsLoggedIn)
+                    </Tag>
+                </PropertyColumn>
+                <PropertyColumn Property="r => r.LastLoginAt" Title="Last Login" Format="yyyy-MM-dd HH:mm" />
+                <PropertyColumn Property="r => r.CreatedAt" Title="Created" Format="yyyy-MM-dd HH:mm" />
+                <PropertyColumn Property="r => r.RememberSession" Title="Remember">
+                    @(context.RememberSession ? "Yes" : "No")
+                </PropertyColumn>
+                <ActionColumn Title="Actions" Width="200">
+                    <Space>
+                        <SpaceItem>
+                            <Button Type="@ButtonType.Default"
+                                    Size="@ButtonSize.Small"
+                                    Icon="reload"
+                                    Loading="IsValidating"
+                                    OnClick="() => HandleValidateSessionAsync(context.AccountKey)" />
+                        </SpaceItem>
+                        <SpaceItem>
+                            <Button Type="@ButtonType.Primary"
+                                    Danger="true"
+                                    Size="@ButtonSize.Small"
+                                    Icon="logout"
+                                    Loading="IsLoggingOut"
+                                    OnClick="() => HandleLogoutAsync(context.AccountKey)" />
+                        </SpaceItem>
+                    </Space>
+                </ActionColumn>
+            </Table>
+        </div>
+    }
+</div>

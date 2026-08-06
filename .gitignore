@@ -361,3 +361,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Playwright browser profiles — contains cookies, session data, and user credentials
+browserprofiles/

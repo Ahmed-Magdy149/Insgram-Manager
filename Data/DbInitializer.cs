@@ -68,6 +68,9 @@ public static class DbInitializer
             await ExecuteNonQueryAsync(connection, "CREATE INDEX IF NOT EXISTS \"IX_InstagramInteractions_AccountKey\" ON \"InstagramInteractions\" (\"AccountKey\");");
             await ExecuteNonQueryAsync(connection, "CREATE INDEX IF NOT EXISTS \"IX_InstagramInteractions_CreatedAt\" ON \"InstagramInteractions\" (\"CreatedAt\");");
 
+            await ExecuteNonQueryAsync(connection, "CREATE TABLE IF NOT EXISTS \"InstagramAuthSessions\" (\"Id\" INTEGER NOT NULL CONSTRAINT \"PK_InstagramAuthSessions\" PRIMARY KEY AUTOINCREMENT, \"CreatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"UpdatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"AccountKey\" TEXT NOT NULL, \"Username\" TEXT NOT NULL, \"DisplayName\" TEXT NULL, \"ProfilePictureUrl\" TEXT NULL, \"ProfileDirectory\" TEXT NOT NULL, \"IsLoggedIn\" INTEGER NOT NULL, \"LastLoginAt\" TEXT NULL, \"LastValidatedAt\" TEXT NULL, \"RememberSession\" INTEGER NOT NULL);");
+            await ExecuteNonQueryAsync(connection, "CREATE UNIQUE INDEX IF NOT EXISTS \"IX_InstagramAuthSessions_AccountKey\" ON \"InstagramAuthSessions\" (\"AccountKey\");");
+
             logger.LogInformation("Core database schema verified or repaired successfully.");
         }
         finally
