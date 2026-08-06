@@ -338,6 +338,7 @@ public sealed partial class HtmlImportParser : IInstagramImportParser
         {
             string? username = null;
             string? fullName = null;
+            DateTime? followDate = null;
 
             var rows = table.SelectNodes(".//tr");
             if (rows is null)
@@ -359,6 +360,8 @@ public sealed partial class HtmlImportParser : IInstagramImportParser
                     username = value;
                 else if (label == "name")
                     fullName = value;
+                else if (label is "date" or "follow date" or "requested date" or "following date" or "timestamp")
+                    followDate = ParseInstagramDate(value);
             }
 
             if (string.IsNullOrWhiteSpace(username))
@@ -378,11 +381,45 @@ public sealed partial class HtmlImportParser : IInstagramImportParser
                 Username = username,
                 FullName = string.IsNullOrWhiteSpace(fullName) ? null : fullName,
                 ProfileUrl = $"https://www.instagram.com/{username}/",
-                RelationshipType = type
+                RelationshipType = type,
+                FollowDate = followDate
             });
         }
 
         return relationships;
+    }
+
+    /// <summary>
+    /// Parses Instagram export date formats like "Mar 23, 2016 7:06 am".
+    /// </summary>
+    private static DateTime? ParseInstagramDate(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        var formats = new[]
+        {
+            "MMM d, yyyy h:mm tt",
+            "MMM d, yyyy hh:mm tt",
+            "MMM dd, yyyy h:mm tt",
+            "MMM dd, yyyy hh:mm tt",
+            "MMMM d, yyyy h:mm tt",
+            "MMMM d, yyyy hh:mm tt",
+            "MMMM dd, yyyy h:mm tt",
+            "MMMM dd, yyyy hh:mm tt",
+            "MMM d, yyyy",
+            "MMM dd, yyyy",
+            "MMMM d, yyyy",
+            "MMMM dd, yyyy"
+        };
+
+        if (DateTime.TryParseExact(value.Trim(), formats, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AllowInnerWhite | System.Globalization.DateTimeStyles.AssumeUniversal, out var result))
+            return result.ToUniversalTime();
+
+        if (DateTime.TryParse(value.Trim(), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var parsed))
+            return parsed.ToUniversalTime();
+
+        return null;
     }
 
     [GeneratedRegex("(?:https?://(?:www\\.)?instagram\\.com)?/(?:_u/)?([^/\\?\"'\\s<>]+)/?")]

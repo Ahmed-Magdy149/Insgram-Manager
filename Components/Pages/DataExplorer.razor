@@ -16,6 +16,18 @@
                        OnPressEnter="OnSearch"
                        AllowClear />
             </div>
+            <div class="data-explorer-filter">
+                <Select TItem="StatusFilterType"
+                        TItemValue="StatusFilterType"
+                        Value="@SelectedStatusFilter"
+                        ValueChanged="@OnStatusFilterChanged"
+                        Style="width: 160px;"
+                        Placeholder="Filter by status">
+                    <SelectOption TItem="StatusFilterType" TItemValue="StatusFilterType" Value="@StatusFilterType.All">All</SelectOption>
+                    <SelectOption TItem="StatusFilterType" TItemValue="StatusFilterType" Value="@StatusFilterType.Pending">Pending</SelectOption>
+                    <SelectOption TItem="StatusFilterType" TItemValue="StatusFilterType" Value="@StatusFilterType.Cancelled">Cancelled</SelectOption>
+                </Select>
+            </div>
             <div class="data-explorer-actions">
                 <Button Type="@ButtonType.Default"
                         Danger="true"
@@ -81,30 +93,52 @@
 
         @if (IsDeleteInProgress)
         {
-            <Card Class="data-explorer-delete-progress-card">
+            <Card Class="data-explorer-delete-progress-card" Bordered="true">
                 <div class="data-explorer-delete-progress">
                     <div class="data-explorer-delete-progress-header">
-                        <strong>Deleting...</strong>
-                        <span class="data-explorer-delete-progress-count">
-                            @DeleteProgress.Processed / @DeleteProgress.Total
-                        </span>
+                        <div class="data-explorer-delete-progress-title">
+                            <Icon Type="thunderbolt" />
+                            <strong>Cancelling Pending Requests</strong>
+                        </div>
+                        <div class="data-explorer-delete-progress-counters">
+                            <span class="data-explorer-delete-progress-remaining">@(@DeleteProgress.Total - @DeleteProgress.Processed)</span>
+                            <span class="data-explorer-delete-progress-remaining-label">remaining</span>
+                        </div>
                     </div>
+
                     <Progress Percent="@DeleteProgress.Percentage"
-                              Status="@(DeleteProgress.Failed > 0 ? ProgressStatus.Exception : ProgressStatus.Active)" />
+                              ShowInfo="true"
+                              Status="@(DeleteProgress.Failed > 0 ? ProgressStatus.Exception : ProgressStatus.Active)"
+                              StrokeColor="@(DeleteProgress.Failed > 0 ? "#ff4d4f" : "#1677ff")"
+                              Class="data-explorer-delete-progress-bar" />
+
                     <div class="data-explorer-delete-progress-current">
-                        Current Account: <strong>@DeleteProgress.CurrentUsername</strong>
+                        <Icon Type="user" />
+                        <span>Current Account:</span>
+                        <strong>@DeleteProgress.CurrentUsername</strong>
                     </div>
+
                     <div class="data-explorer-delete-progress-stats">
-                        <Tag Color="@("green")">Deleted: @DeleteProgress.Succeeded</Tag>
+                        <div class="data-explorer-delete-progress-stat data-explorer-delete-progress-stat--success">
+                            <Icon Type="check-circle" />
+                            <span>@DeleteProgress.Succeeded deleted</span>
+                        </div>
                         @if (DeleteProgress.Skipped > 0)
                         {
-                            <Tag Color="@("orange")">Skipped: @DeleteProgress.Skipped</Tag>
+                            <div class="data-explorer-delete-progress-stat data-explorer-delete-progress-stat--skipped">
+                                <Icon Type="minus-circle" />
+                                <span>@DeleteProgress.Skipped skipped</span>
+                            </div>
                         }
                         @if (DeleteProgress.Failed > 0)
                         {
-                            <Tag Color="@("red")">Failed: @DeleteProgress.Failed</Tag>
+                            <div class="data-explorer-delete-progress-stat data-explorer-delete-progress-stat--failed">
+                                <Icon Type="close-circle" />
+                                <span>@DeleteProgress.Failed failed</span>
+                            </div>
                         }
                     </div>
+
                     <div class="data-explorer-delete-progress-actions">
                         <Button Type="@ButtonType.Default"
                                 Danger="true"
@@ -183,6 +217,44 @@
             {
                 <PropertyColumn Property="c => c.CreatedAt" Title="Imported At" Format="yyyy-MM-dd HH:mm" Sortable />
             }
+            @if (ShowFollowDate)
+            {
+                <PropertyColumn Property="c => c.FollowDate" Title="Follow Date" Format="yyyy-MM-dd HH:mm" Sortable />
+            }
+            @if (ShowStatus)
+            {
+                <PropertyColumn Property="c => c.IsCancelled" Title="Status">
+                    @if (context.IsCancelled)
+                    {
+                        <Tag Color="@("red")">Cancelled</Tag>
+                    }
+                    else
+                    {
+                        <Tag Color="@("blue")">Pending</Tag>
+                    }
+                </PropertyColumn>
+            }
         </Table>
     </Card>
+
+    <Modal Visible="@ShowDeleteCompleteModal"
+           Title="@DeleteCompleteTitle"
+           OnCancel="CloseDeleteCompleteModal"
+           OnOk="CloseDeleteCompleteModal"
+           OkText="@("Done")"
+           CancelText="@("Close")"
+           Centered="true"
+           Width="480">
+        <div class="data-explorer-delete-complete">
+            <div class="data-explorer-delete-complete-icon">
+                <Icon Type="check-circle" />
+            </div>
+            <div class="data-explorer-delete-complete-summary">
+                @DeleteCompleteSummary
+            </div>
+            <div class="data-explorer-delete-complete-thanks">
+                Thank you, Engineer Ahmed Magdy
+            </div>
+        </div>
+    </Modal>
 </div>

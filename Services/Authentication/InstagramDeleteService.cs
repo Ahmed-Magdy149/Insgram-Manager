@@ -281,6 +281,7 @@ public sealed class InstagramDeleteService : IInstagramDeleteService
             currentUrl.Contains("?", StringComparison.OrdinalIgnoreCase) && !currentUrl.Contains($"/{username}", StringComparison.OrdinalIgnoreCase))
         {
             _logger.LogInformation("User {Username} not found — profile redirected", username);
+            await MarkAsCancelledAsync(username, cancellationToken);
             return new DeleteItemResult { Username = username, Status = DeleteItemStatus.NotFound };
         }
 
@@ -331,6 +332,7 @@ public sealed class InstagramDeleteService : IInstagramDeleteService
                     if (followBtn is not null && await followBtn.IsVisibleAsync())
                     {
                         _logger.LogInformation("User {Username} is not followed — skipping", username);
+                        await MarkAsCancelledAsync(username, cancellationToken);
                         return new DeleteItemResult { Username = username, Status = DeleteItemStatus.AlreadyRemoved };
                     }
                 }
@@ -340,6 +342,7 @@ public sealed class InstagramDeleteService : IInstagramDeleteService
             }
 
             _logger.LogInformation("No Following/Requested/Follow button found for {Username} — may be already removed", username);
+            await MarkAsCancelledAsync(username, cancellationToken);
             return new DeleteItemResult { Username = username, Status = DeleteItemStatus.AlreadyRemoved };
         }
 
@@ -380,26 +383,30 @@ public sealed class InstagramDeleteService : IInstagramDeleteService
             }
         }
 
-        try
-        {
-            await using var context = await GetDbContextAsync();
-            var relationship = await context.InstagramRelationships
-                .FirstOrDefaultAsync(r => r.Username == username && r.RelationshipType == RelationshipType.PendingRequests, cancellationToken);
-
-            if (relationship is not null)
-            {
-                context.InstagramRelationships.Remove(relationship);
-                await context.SaveChangesAsync(cancellationToken);
-                _logger.LogInformation("Removed {Username} from database", username);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to remove {Username} from database", username);
-        }
+        await MarkAsCancelledAsync(username, cancellationToken);
 
         _logger.LogInformation("Successfully unfollowed {Username}", username);
         return new DeleteItemResult { Username = username, Status = DeleteItemStatus.Deleted };
+    }
+
+    private async Task MarkAsCancelledAsync(string username, CancellationToken cancellationToken)
+    {
+        await using var context = await GetDbContextAsync();
+        var relationship = await context.InstagramRelationships
+            .FirstOrDefaultAsync(r => r.Username == username && r.RelationshipType == RelationshipType.PendingRequests, cancellationToken);
+
+        if (relationship is not null)
+        {
+            relationship.IsCancelled = true;
+            relationship.CancelledAt = DateTime.UtcNow;
+            relationship.UpdatedAt = DateTime.UtcNow;
+            await context.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Marked {Username} as cancelled in database (Id={Id})", username, relationship.Id);
+        }
+        else
+        {
+            _logger.LogWarning("Could not find relationship record for {Username} with PendingRequests type in database", username);
+        }
     }
 
     private async Task<Data.ApplicationDbContext> GetDbContextAsync()

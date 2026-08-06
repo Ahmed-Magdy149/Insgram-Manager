@@ -294,6 +294,7 @@ public sealed class ImportService : IImportService
                         existing.ProfileUrl = normalizedProfileUrl;
                         existing.SourceFileName = normalizedProfileUrl;
                         existing.ImportSessionId = sessionId;
+                        existing.FollowDate = relationship.FollowDate ?? existing.FollowDate;
                         existing.UpdatedAt = DateTime.UtcNow;
                         relationshipCount++;
                         continue;
@@ -307,7 +308,8 @@ public sealed class ImportService : IImportService
                     ProfileUrl = normalizedProfileUrl,
                     RelationshipType = relationship.RelationshipType,
                     SourceFileName = normalizedProfileUrl,
-                    ImportSessionId = sessionId
+                    ImportSessionId = sessionId,
+                    FollowDate = relationship.FollowDate
                 });
                 relationshipCount++;
             }

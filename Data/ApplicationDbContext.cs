@@ -69,6 +69,7 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.ImportSessionId).HasMaxLength(64);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(e => e.IsCancelled);
         });
 
         modelBuilder.Entity<ImportRecord>(entity =>

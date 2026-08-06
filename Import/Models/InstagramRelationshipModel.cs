@@ -14,4 +14,6 @@ public sealed class InstagramRelationshipModel
     public string? ProfileUrl { get; set; }
 
     public RelationshipType RelationshipType { get; set; }
+
+    public DateTime? FollowDate { get; set; }
 }

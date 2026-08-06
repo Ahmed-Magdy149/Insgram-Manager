@@ -19,4 +19,10 @@ public class InstagramRelationship : BaseEntity
     public string? SourceFileName { get; set; }
 
     public string? ImportSessionId { get; set; }
+
+    public DateTime? FollowDate { get; set; }
+
+    public bool IsCancelled { get; set; }
+
+    public DateTime? CancelledAt { get; set; }
 }

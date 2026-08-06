@@ -42,7 +42,7 @@ public sealed class PendingRequestService : IPendingRequestService
         await using var context = await _contextFactory.CreateDbContextAsync();
         var items = await context.InstagramRelationships
             .AsNoTracking()
-            .Where(r => r.RelationshipType == RelationshipType.PendingRequests)
+            .Where(r => r.RelationshipType == RelationshipType.PendingRequests && !r.IsCancelled)
             .OrderByDescending(r => r.CreatedAt)
             .Select(r => new PendingRequestItem
             {

@@ -49,10 +49,16 @@ public static class DbInitializer
             await ExecuteNonQueryAsync(connection, "CREATE TABLE IF NOT EXISTS \"InstagramAccounts\" (\"Id\" INTEGER NOT NULL CONSTRAINT \"PK_InstagramAccounts\" PRIMARY KEY AUTOINCREMENT, \"CreatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"UpdatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"Username\" TEXT NOT NULL, \"FullName\" TEXT NULL, \"Biography\" TEXT NULL, \"ProfilePictureUrl\" TEXT NULL, \"FollowerCount\" INTEGER NOT NULL, \"FollowingCount\" INTEGER NOT NULL, \"PostCount\" INTEGER NOT NULL, \"IsVerified\" INTEGER NOT NULL, \"IsPrivate\" INTEGER NOT NULL, \"SourceFileName\" TEXT NULL, \"ImportSessionId\" TEXT NULL);");
             await ExecuteNonQueryAsync(connection, "CREATE INDEX IF NOT EXISTS \"IX_InstagramAccounts_Username\" ON \"InstagramAccounts\" (\"Username\");");
 
-            await ExecuteNonQueryAsync(connection, "CREATE TABLE IF NOT EXISTS \"InstagramRelationships\" (\"Id\" INTEGER NOT NULL CONSTRAINT \"PK_InstagramRelationships\" PRIMARY KEY AUTOINCREMENT, \"CreatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"UpdatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"Username\" TEXT NOT NULL, \"FullName\" TEXT NULL, \"ProfileUrl\" TEXT NULL, \"RelationshipType\" INTEGER NOT NULL, \"SourceFileName\" TEXT NULL, \"ImportSessionId\" TEXT NULL);");
+            await ExecuteNonQueryAsync(connection, "CREATE TABLE IF NOT EXISTS \"InstagramRelationships\" (\"Id\" INTEGER NOT NULL CONSTRAINT \"PK_InstagramRelationships\" PRIMARY KEY AUTOINCREMENT, \"CreatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"UpdatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"Username\" TEXT NOT NULL, \"FullName\" TEXT NULL, \"ProfileUrl\" TEXT NULL, \"RelationshipType\" INTEGER NOT NULL, \"SourceFileName\" TEXT NULL, \"ImportSessionId\" TEXT NULL, \"FollowDate\" TEXT NULL, \"IsCancelled\" INTEGER NOT NULL DEFAULT 0, \"CancelledAt\" TEXT NULL);");
             await ExecuteNonQueryAsync(connection, "CREATE INDEX IF NOT EXISTS \"IX_InstagramRelationships_Username\" ON \"InstagramRelationships\" (\"Username\");");
             await ExecuteNonQueryAsync(connection, "CREATE INDEX IF NOT EXISTS \"IX_InstagramRelationships_RelationshipType\" ON \"InstagramRelationships\" (\"RelationshipType\");");
             await ExecuteNonQueryAsync(connection, "CREATE INDEX IF NOT EXISTS \"IX_InstagramRelationships_Username_RelationshipType\" ON \"InstagramRelationships\" (\"Username\", \"RelationshipType\");");
+            await ExecuteNonQueryAsync(connection, "CREATE INDEX IF NOT EXISTS \"IX_InstagramRelationships_IsCancelled\" ON \"InstagramRelationships\" (\"IsCancelled\");");
+
+            // Add columns to existing tables if they don't exist (idempotent migration for existing DBs)
+            await TryAddColumnAsync(connection, "InstagramRelationships", "FollowDate", "TEXT NULL");
+            await TryAddColumnAsync(connection, "InstagramRelationships", "IsCancelled", "INTEGER NOT NULL DEFAULT 0");
+            await TryAddColumnAsync(connection, "InstagramRelationships", "CancelledAt", "TEXT NULL");
 
             await ExecuteNonQueryAsync(connection, "CREATE TABLE IF NOT EXISTS \"ImportRecords\" (\"Id\" INTEGER NOT NULL CONSTRAINT \"PK_ImportRecords\" PRIMARY KEY AUTOINCREMENT, \"CreatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"UpdatedAt\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, \"SessionId\" TEXT NOT NULL, \"FileName\" TEXT NOT NULL, \"StartedAt\" TEXT NOT NULL, \"CompletedAt\" TEXT NULL, \"Status\" TEXT NOT NULL, \"TotalRecords\" INTEGER NOT NULL, \"ImportedRecords\" INTEGER NOT NULL, \"SkippedRecords\" INTEGER NOT NULL, \"FailedRecords\" INTEGER NOT NULL, \"AccountCount\" INTEGER NOT NULL, \"RelationshipCount\" INTEGER NOT NULL, \"ErrorMessage\" TEXT NULL);");
             await ExecuteNonQueryAsync(connection, "CREATE INDEX IF NOT EXISTS \"IX_ImportRecords_SessionId\" ON \"ImportRecords\" (\"SessionId\");");
@@ -137,6 +143,21 @@ public static class DbInitializer
         using var command = connection.CreateCommand();
         command.CommandText = sql;
         await command.ExecuteNonQueryAsync();
+    }
+
+    private static async Task TryAddColumnAsync(DbConnection connection, string tableName, string columnName, string columnDefinition)
+    {
+        using var checkCommand = connection.CreateCommand();
+        checkCommand.CommandText = $"PRAGMA table_info(\"{tableName}\");";
+        using var reader = await checkCommand.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var existingName = reader.GetString(1);
+            if (string.Equals(existingName, columnName, StringComparison.OrdinalIgnoreCase))
+                return;
+        }
+
+        await ExecuteNonQueryAsync(connection, $"ALTER TABLE \"{tableName}\" ADD COLUMN \"{columnName}\" {columnDefinition};");
     }
 
     private static void AddParameter(DbCommand command, string name, object? value)

@@ -170,6 +170,10 @@
     min-width: 220px;
 }
 
+.data-explorer-filter {
+    flex: 0 0 auto;
+}
+
 .data-explorer-actions {
     display: flex;
     gap: 8px;
@@ -184,6 +188,153 @@
 
 .data-explorer-table {
     margin-top: 16px;
+}
+
+.data-explorer-delete-progress-card {
+    margin-bottom: 16px;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.data-explorer-delete-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.data-explorer-delete-progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.data-explorer-delete-progress-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    color: var(--ant-heading-color, #262626);
+}
+
+.data-explorer-delete-progress-title .anticon {
+    font-size: 20px;
+    color: var(--ant-color-primary, #1677ff);
+}
+
+.data-explorer-delete-progress-counters {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.data-explorer-delete-progress-remaining {
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--ant-color-primary, #1677ff);
+    font-variant-numeric: tabular-nums;
+}
+
+.data-explorer-delete-progress-remaining-label {
+    font-size: 13px;
+    color: var(--ant-text-color-secondary, #8c8c8c);
+}
+
+.data-explorer-delete-progress-bar {
+    margin: 0;
+}
+
+.data-explorer-delete-progress-current {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    color: var(--ant-text-color-secondary, #8c8c8c);
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: var(--ant-background-color-light, rgba(0, 0, 0, 0.02));
+}
+
+.data-explorer-delete-progress-current .anticon {
+    color: var(--ant-color-primary, #1677ff);
+}
+
+.data-explorer-delete-progress-current strong {
+    color: var(--ant-heading-color, #262626);
+    font-weight: 600;
+}
+
+.data-explorer-delete-progress-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.data-explorer-delete-progress-stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 20px;
+}
+
+.data-explorer-delete-progress-stat--success {
+    color: #52c41a;
+    background: rgba(82, 196, 26, 0.08);
+}
+
+.data-explorer-delete-progress-stat--skipped {
+    color: #faad14;
+    background: rgba(250, 173, 20, 0.08);
+}
+
+.data-explorer-delete-progress-stat--failed {
+    color: #ff4d4f;
+    background: rgba(255, 77, 79, 0.08);
+}
+
+.data-explorer-delete-progress-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.data-explorer-delete-complete {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 24px 16px 8px;
+    text-align: center;
+}
+
+.data-explorer-delete-complete-icon {
+    font-size: 48px;
+    color: #52c41a;
+    line-height: 1;
+}
+
+.data-explorer-delete-complete-icon .anticon {
+    font-size: 48px;
+}
+
+.data-explorer-delete-complete-summary {
+    font-size: 15px;
+    color: var(--ant-text-color, #000);
+    font-weight: 500;
+    line-height: 1.6;
+}
+
+.data-explorer-delete-complete-thanks {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ant-color-primary, #1677ff);
+    padding: 12px 24px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(22, 119, 255, 0.06), rgba(82, 196, 26, 0.06));
+    letter-spacing: 0.01em;
 }
 
 @media (max-width: 768px) {

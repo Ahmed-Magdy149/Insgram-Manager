@@ -15,6 +15,16 @@ using Microsoft.JSInterop;
 namespace Insgram_Manager.Components.Pages;
 
 /// <summary>
+/// Filter options for the Status column in the Data Explorer table.
+/// </summary>
+public enum StatusFilterType
+{
+    All = 0,
+    Pending = 1,
+    Cancelled = 2
+}
+
+/// <summary>
 /// Code-behind for the Data Explorer page.
 /// Provides browsing, search, sorting, pagination, column selection, and CSV export for imported relationship data.
 /// </summary>
@@ -35,6 +45,7 @@ public class DataExplorerPageBase : AuthGuardComponentBase
 
     protected string SearchTerm { get; set; } = string.Empty;
     protected RelationshipType SelectedType { get; set; } = RelationshipType.Followers;
+    protected StatusFilterType SelectedStatusFilter { get; set; } = StatusFilterType.All;
     protected List<InstagramRelationship> SelectedRows { get; set; } = [];
 
     protected int PageIndex { get; set; } = 1;
@@ -52,6 +63,8 @@ public class DataExplorerPageBase : AuthGuardComponentBase
     protected bool ShowProfileUrl { get; set; } = true;
     protected bool ShowType { get; set; } = false;
     protected bool ShowImportedAt { get; set; } = true;
+    protected bool ShowFollowDate { get; set; } = true;
+    protected bool ShowStatus { get; set; } = true;
 
     protected bool IsRefreshingSessionStatus { get; set; }
     protected bool GlobalSessionIsConnected { get; set; }
@@ -110,6 +123,29 @@ public class DataExplorerPageBase : AuthGuardComponentBase
     }
 
     protected bool IsInstagramSideActionSupported => SelectedType == RelationshipType.PendingRequests;
+
+    protected bool ShowDeleteCompleteModal { get; set; }
+    protected string DeleteCompleteTitle { get; set; } = string.Empty;
+    protected string DeleteCompleteSummary { get; set; } = string.Empty;
+
+    private void ShowDeleteCompletePopup(DeleteResult result)
+    {
+        DeleteCompleteTitle = result.Succeeded > 0 ? "Operation Complete" : "Operation Finished";
+        var lines = new List<string>
+        {
+            $"Total: {result.TotalRequested}",
+            $"Deleted: {result.Succeeded}",
+            $"Skipped: {result.Skipped}",
+            $"Failed: {result.Failed}"
+        };
+        DeleteCompleteSummary = string.Join("  \u2022  ", lines);
+        ShowDeleteCompleteModal = true;
+    }
+
+    protected void CloseDeleteCompleteModal()
+    {
+        ShowDeleteCompleteModal = false;
+    }
 
     protected string InstagramActionLabel => SelectedType == RelationshipType.PendingRequests
         ? "Cancel selected on Instagram"
@@ -173,6 +209,11 @@ public class DataExplorerPageBase : AuthGuardComponentBase
                 .AsNoTracking()
                 .Where(r => r.RelationshipType == SelectedType);
 
+            if (SelectedStatusFilter == StatusFilterType.Pending)
+                query = query.Where(r => !r.IsCancelled);
+            else if (SelectedStatusFilter == StatusFilterType.Cancelled)
+                query = query.Where(r => r.IsCancelled);
+
             if (!string.IsNullOrWhiteSpace(SearchTerm))
             {
                 var term = SearchTerm.Trim().ToLowerInvariant();
@@ -214,6 +255,14 @@ public class DataExplorerPageBase : AuthGuardComponentBase
             return;
 
         _lastSearchTerm = SearchTerm;
+        PageIndex = 1;
+        await LoadDataAsync();
+        StateHasChanged();
+    }
+
+    protected async Task OnStatusFilterChanged(StatusFilterType filter)
+    {
+        SelectedStatusFilter = filter;
         PageIndex = 1;
         await LoadDataAsync();
         StateHasChanged();
@@ -297,18 +346,10 @@ public class DataExplorerPageBase : AuthGuardComponentBase
             await LoadDataAsync();
             await LoadGlobalSessionStatusAsync();
 
-            if (result.Success)
-            {
-                MessageService.Success($"Deleted {result.Succeeded} pending request(s) on Instagram.");
-            }
-            else if (result.Succeeded > 0)
-            {
-                MessageService.Warning($"Deleted {result.Succeeded} of {result.TotalRequested} — {result.Failed} failed, {result.Skipped} skipped.");
-            }
-            else
-            {
-                MessageService.Error(result.Error ?? "Failed to delete the selected requests on Instagram.");
-            }
+            if (result.TotalRequested > 0)
+                ShowDeleteCompletePopup(result);
+            else if (result.Succeeded == 0 && result.TotalRequested == 0)
+                MessageService.Info("No pending requests to delete.");
         }
         catch (OperationCanceledException)
         {
@@ -359,22 +400,10 @@ public class DataExplorerPageBase : AuthGuardComponentBase
             await LoadDataAsync();
             await LoadGlobalSessionStatusAsync();
 
-            if (result.Success)
-            {
-                MessageService.Success($"Deleted {result.Succeeded} pending request(s) on Instagram.");
-            }
-            else if (result.Succeeded > 0)
-            {
-                MessageService.Warning($"Deleted {result.Succeeded} of {result.TotalRequested} — {result.Failed} failed, {result.Skipped} skipped.");
-            }
-            else if (result.TotalRequested == 0)
-            {
-                MessageService.Info("No pending requests to delete.");
-            }
+            if (result.TotalRequested > 0)
+                ShowDeleteCompletePopup(result);
             else
-            {
-                MessageService.Error(result.Error ?? "Failed to delete pending requests on Instagram.");
-            }
+                MessageService.Info("No pending requests to delete.");
         }
         catch (OperationCanceledException)
         {
